@@ -1,0 +1,16 @@
+# data (raw files are configured externally; never copied into the repo)
+data/
+artifacts/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.ipynb_checkpoints/
+.~lock.*#
+LEOPs/
+a-comprehensive-dataset-of-pattern-electroretinograms-for-ocular-electrophysiology-research-the-perg-ioba-dataset-1.0.0/

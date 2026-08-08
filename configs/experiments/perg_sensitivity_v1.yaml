@@ -1,0 +1,33 @@
+# Phase 8 — PERG logMAR acuity sensitivity (plan Section 16.6 E11, Section 17).
+# Five ablations: age strata, sex strata, one visit per subject, diagnosis
+# families, acuity missingness (acuity parsed from participants_info.csv).
+# Uses the same PERG units/folds/nested-CV as the main baselines; CUML GPU
+# logreg/svm when available.
+name: perg_sensitivity_v1
+fold_version: v1
+datasets: ["PERG"]
+e0_methods: ["prevalence", "metadata"]
+e4_methods:
+  - clinical
+  - pca_fpca
+  - derot_lr
+demographic_methods: []
+models: ["logreg", "svm_rbf"]
+outer_folds: [0, 1, 2, 3, 4]
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+pca_variance: 0.95
+max_pca_components: 32
+seed: 777
+legacy: false
+use_gpu: false
+acuity_as_feature: true
+min_family_n: 20
+ablations:
+  - age_strata
+  - sex_strata
+  - one_visit_per_subject
+  - diagnosis_families
+  - acuity_missingness
+output_subdir: perg_sensitivity_v1

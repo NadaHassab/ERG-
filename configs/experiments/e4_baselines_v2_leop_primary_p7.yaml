@@ -1,0 +1,34 @@
+# E4 classical baselines on the LEOP primary nine-step cohort (plan 16.6):
+# Control/ASD only, nine-step recordings only, one prediction per participant.
+# Availability/protocol-count shortcut features are FORBIDDEN here (the
+# pipeline raises if they are requested); the protocol/availability/QC
+# shortcut baselines belong to the secondary cohort config.
+name: e4_baselines_v2_leop_primary_nine_step_p7
+fold_version: v1
+datasets: ["LEOP"]
+leop_cohort: primary_nine_step
+e0_methods: ["prevalence", "metadata", "quality"]
+e4_methods:
+  - clinical
+  - slot
+  - pca_fpca
+  - raw_rbf
+  - scdt
+  - derot_lr
+  - derot_rbf
+  - scattering
+  - spectral
+  - slot_sot
+demographic_methods:
+  - clinical
+models: ["logreg", "svm_rbf", "histgb"]
+outer_folds: [0, 1, 2, 3, 4]
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+pca_variance: 0.95
+max_pca_components: 32
+seed: 777
+legacy: false
+use_gpu: false
+output_subdir: baselines_v2_leop_primary_nine_step_p7_no_confound

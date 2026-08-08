@@ -1,0 +1,36 @@
+# E4 classical single-dataset baselines (plan Section 17 E4) plus E0
+# sanity/confound baselines.  All methods share the same supervised units
+# and outer folds.  Corrected (v2) pipeline: write to baselines_v2/.
+name: e4_baselines_v2
+fold_version: v1
+datasets: ["LEOP", "PERG"]
+e0_methods: ["prevalence", "metadata", "availability", "quality"]
+e4_methods:
+  - clinical
+  - pca_fpca
+  - raw_rbf
+  - scdt
+  - derot_lr
+  - derot_rbf
+  - scattering
+  - spectral
+demographic_methods:
+  - clinical
+  - pca_fpca
+  - raw_rbf
+  - scdt
+  - derot_lr
+  - derot_rbf
+  - scattering
+  - spectral
+models: ["logreg", "svm_rbf", "histgb"]
+outer_folds: [0, 1, 2, 3, 4]
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+pca_variance: 0.95
+max_pca_components: 32
+seed: 777
+legacy: false
+use_gpu: true
+output_subdir: baselines_v2

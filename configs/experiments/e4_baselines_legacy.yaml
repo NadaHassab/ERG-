@@ -1,0 +1,34 @@
+# Frozen Phase-0 legacy pipeline (models/legacy_baselines.py snapshot).
+# Reproduces the pre-v2 E0/E4 numbers exactly; writes to
+# artifacts/results/baselines_legacy_v1/ so the original
+# artifacts/results/baselines/ outputs are never touched.
+name: e4_baselines_legacy_v1
+fold_version: v1
+datasets: ["LEOP", "PERG"]
+e0_methods: ["prevalence", "metadata", "availability", "quality"]
+e4_methods:
+  - clinical
+  - pca_fpca
+  - raw_rbf
+  - scdt
+  - derot_lr
+  - derot_rbf
+  - scattering
+demographic_methods:
+  - clinical
+  - pca_fpca
+  - raw_rbf
+  - scdt
+  - derot_lr
+  - derot_rbf
+  - scattering
+models: ["logreg", "svm_rbf", "histgb"]
+outer_folds: [0, 1, 2, 3, 4]
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+pca_variance: 0.95
+max_pca_components: 32
+seed: 777
+legacy: true
+output_subdir: baselines_legacy_v1

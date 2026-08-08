@@ -1,0 +1,53 @@
+version: preprocessing_v1
+segment_length: 128
+ot_quantiles: 64
+leops:
+  baseline: prestimulus_median
+  primary_protocol: 9_step
+  smoothing_ms: 3.0
+  stimulus_onset_ms: 0.0
+perg:
+  baseline: none
+  offset_sensitivities: [none, whole_trace_median, robust_trend]
+  smoothing_ms: 3.0
+smoothing:
+  method: savitzky_golay
+  window_ms: 3.0
+  polyorder: 3
+landmarks:
+  leops_a_range: [5.0, 25.0]
+  leops_b_range: [15.0, 55.0]
+  leops_late_range: [55.0, 110.0]
+  leops_min_prominence_frac: 0.05
+  leops_max_disagreement_ms: 10.0
+  leops_min_separation_ms: 5.0
+  leops_late_separation_ms: 10.0
+  perg_n35_range: [20.0, 45.0]
+  perg_p50_range: [35.0, 70.0]
+  perg_n95_range: [65.0, 130.0]
+  perg_min_prominence_frac: 0.05
+  perg_min_separation_ms: 5.0
+  perg_late_separation_ms: 10.0
+segmentation:
+  relative_phase_range: [-0.2, 1.2]
+  late_end_ms: 110.0
+  op_default_confidence: 1.0
+  leops:
+    early_a_pad_ms: 5.0
+    early_a_bound_ms: 30.0
+    early_a_fallback_ms: [5.0, 25.0]
+    a_to_b_pad_ms: [-5.0, 10.0]
+    a_to_b_fallback_ms: [20.0, 60.0]
+    late_pad_ms: 5.0
+    late_fallback_lo_ms: 20.0
+  perg:
+    early_pad_ms: [-10.0, 10.0]
+    early_fallback_ms: [15.0, 75.0]
+    late_pad_ms: [-10.0, 20.0]
+    late_fallback_ms: [40.0, 135.0]
+interpolation: pchip
+hard_finite_fraction: 0.95
+max_isolated_nan_gaps: 1
+prohibit_extrapolation: true
+mass_tolerance: 1.0e-8
+robust_trend_inlier_mad_multiple: 3.0
