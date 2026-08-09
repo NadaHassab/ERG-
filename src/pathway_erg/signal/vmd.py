@@ -30,12 +30,11 @@ through ``VMDConfig``.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 from scipy.signal import hilbert
-
 from vmdpy import VMD as _vmdpy_vmd
 
 DEFAULT_K = 5
@@ -315,7 +314,6 @@ def decompose_vmd(
     recon = inner.sum(axis=0)
     recon_rms = _relative_rms(recon, x)
     residual = float(np.sum((recon - x) ** 2) / (np.sum(x**2) + 1e-12))
-    energy_total = float(np.sum(inner**2))
     mode_energy = np.sum(inner**2, axis=1)
     corr = np.asarray(
         [

@@ -1,5 +1,5 @@
 # data (raw files are configured externally; never copied into the repo)
-data/
+/data/
 artifacts/
 .venv/
 __pycache__/
@@ -14,3 +14,7 @@ dist/
 .~lock.*#
 LEOPs/
 a-comprehensive-dataset-of-pattern-electroretinograms-for-ocular-electrophysiology-research-the-perg-ioba-dataset-1.0.0/
+
+# raw external data dirs (never committed)
+14747349 (2)/
+Pediatric and Adults ERG Database/

@@ -1,0 +1,11 @@
+leops:
+  json_root: LEOPs/jsons
+  xlsx_path: LEOPs/LEOPs_dataset.xlsx
+perg:
+  root: a-comprehensive-dataset-of-pattern-electroretinograms-for-ocular-electrophysiology-research-the-perg-ioba-dataset-1.0.0
+  metadata_csv: a-comprehensive-dataset-of-pattern-electroretinograms-for-ocular-electrophysiology-research-the-perg-ioba-dataset-1.0.0/csv/participants_info.csv
+flinders:
+  xlsx_path: 14747349 (2)/ISCEV Control ERG Flinders University.xlsx
+urfu:
+  root: Pediatric and Adults ERG Database
+artifact_root: artifacts

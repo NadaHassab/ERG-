@@ -39,7 +39,7 @@ as independent people.
 | 2 | Identities, labels, schema, nested folds | **DONE** |
 | 3 | Preprocessing, landmarks, components, QC | **DONE (pending review of findings below)** |
 | 4 | Signed OT + synthetic simulations (E1, E2) | **DONE** |
-| 5 | Simple classical baselines (E0/E4) + VMD | **PARTIAL** — classical baselines done; VMD not yet implemented |
+| 5 | Simple classical baselines (E0/E4) + VMD | **PARTIAL** — classical baselines done; VMD comparator done on both LEOP cohorts (plan §15, §3.26) |
 | 6 | Separate hierarchical neural models | NOT STARTED |
 | 7 | Joint SSL + pathway routing | NOT STARTED |
 | 8 | Graph controls + label efficiency | NOT STARTED |
@@ -47,6 +47,12 @@ as independent people.
 | 10 | Paper + release | NOT STARTED |
 
 ---
+
+## 2b. Phases 1-10 renumbered (original plan Section 26) — VMD line:
+
+After Phase 8, the plan's renumbered list restarts the counter; phase
+"9" in that list is reporting/acceptance, and VMD (plan Section 15) is
+tracked separately here (§3.26).
 
 ## 3. What has been done (in order)
 
@@ -571,6 +577,374 @@ all green.
 - Acuity missingness: with-acuity (n=317) 0.7650; without-acuity (n=19)
   chance-level across the board (noise, as expected at n=19).
 
+### 3.26 Phase 9 — VMD (variational mode decomposition) comparator — 2026-08-08
+
+Adaptive-spectral comparator per plan Section 15 (Dragomiretskiy & Zosso
+2014), implemented with the pinned `vmdpy 0.2` (pure-Python, no new heavy
+deps) and kept strictly separate from the signed-OT pathway: VMD mode
+identity is not physiological identity.
+
+**`src/pathway_erg/signal/vmd.py` (20 tests, all green):**
+- `VMDConfig` exposes the plan 15.2 grid as defaults: K=5, alpha=2000,
+  tau=0, DC=0, init=1 (deterministic, no RNG), tol=1e-7, mirror-pad 25 ms,
+  stability neighbours K∈{4,6}.
+- `calibrate_vmd_frequency` verifies the vmdpy omega->Hz convention
+  (`Hz = omega × fs`, fs = 1000/median_dt_ms) on synthetic tones at both
+  datasets' real sample rates (LEOP 1953.125 Hz, PERG 1666.667 Hz). One
+  calibration finding: K=3 splits low tones (10/25 Hz) under alpha=2000
+  (err up to 0.52); K=2 resolves all four calibration tones to ≤0.45% worst
+  error, so the calibration grid uses K=2.
+- `decompose_vmd` mirrors the recorded padding before VMD and crops after
+  (fixes a 120→110 Hz distortion on short windows), verifies reconstruction
+  (relative RMS + residual energy), sorts modes by physical Hz, and is NaN-
+  safe (all-NaN result, never a crash) and deterministic.
+- `extract_vmd_features` → fixed-length vector: per mode (sorted) physical
+  center frequency, log/relative energy, bandwidth, spectral + time entropy,
+  peak-to-peak, skewness, kurtosis, Hilbert-envelope mean/max/area, first
+  extremum time, source correlation, and a stability score against the
+  neighbour-K decompositions; plus per-decomposition recon RMS, residual
+  energy, convergence, unstable-mode count, iterations (K=5 → 80 features).
+- Tests (20 in `tests/signal/test_vmd.py`): parametrized 10/25/60/120 Hz
+  tones at both sampling rates, sorted modes, recon error < 0.05, mirror
+  padding is required on short windows, determinism, NaN safety, feature
+  shape/names, stability default.
+
+**`signal/vmd_cache.py` + `cache-vmd` CLI (plan line 977 `vmd_modes.zarr #
+baseline cache only`):** VMD lives in its own versioned cache (independent
+`vmd_cache_manifest.json`, keyed by preprocessing config hash + VMD config
+key) so adding it never invalidates the schema-4 component cache or existing
+results. Rows align 1:1 with `components_v4.parquet`; `load_vmd_cache`
+refuses stale schemas/hash/config-key mismatches (rebuild, never reuse).
+`process_recording` gained an optional `vmd_cfg` that computes the fixed
+length vector per physical segment (4-decomp cost: primary + neighbours).
+Full cache built on the real data (23069 components from 9743 real
+recordings, ~13 min with `--jobs 4` on CPU), calibration worst error 0.0045
+(verified). Tests: `tests/signal/test_vmd_cache.py` (7, real-data only —
+see below).
+
+**Real-data discipline:** per user rule, no fabrication anywhere. The VMD
+cache tests stage the *real* recordings + raw waveforms from `artifacts/`
+into a temporary root and run the real segmentation/VMD path over them
+(skip with an explicit message when the real build is absent); the loader
+mismatch/schema tests only touch manifest metadata. Synthetic signals appear
+only in `vmd.py`'s calibration procedure (a physical calibration of the
+pinned implementation, not data) and never in tests of cache results.
+
+**Registered in E4 baselines:** `METHOD_MODELS[vmd] = (logreg, svm_rbf,
+histgb)` (plan 15.4: elastic-net logistic regression — the suite's saga
+logreg — RBF SVM, gradient boosting), `e4_vmd_features` unit-mean
+aggregation of the per-component vectors (mirrors `e4_spectral_features`,
+QC-excluded components dropped), cohort masks applied the same as spectral.
+First comparator run launched on the primary nine-step cohort
+(`configs/experiments/e4_vmd_leop_primary_p9.yaml`,
+`baselines_vmd_leop_primary_nine_step_p9`, CPU).
+
+**Results (AUROC, bootstrap 95% CI, 2000 reps):**
+- **Primary nine-step (n=160, pos=72) — decisive task (plan 15.5):**
+  `vmd_svm_rbf` **0.677** [0.592, 0.760] — the best VMD model — beats the
+  spectral baseline (`spectral_logreg` 0.642), the signed-OT slot path
+  (`slot_sot_logreg` 0.642) and scattering (0.662); within CI of
+  `clinical_demog_logreg` 0.702 (best overall). CIs overlap everywhere, so
+  this is directional, but per plan 15.5 VMD qualifies as a **candidate
+  model** (it beat the signed-OT pipeline and the spectral baseline on the
+  primary task), not merely a comparator. `vmd_logreg` 0.643, `vmd_histgb`
+  0.630; prevalence 0.448 (chance).
+- **Secondary all-protocols (n=232, pos=75):** `vmd_svm_rbf` **0.701**
+  [0.625, 0.775] again above `spectral_logreg` 0.663 and scattering 0.648,
+  but below `slot_sot_logreg` 0.719 and `clinical_logreg` 0.755
+  (best). `quality_histgb` 0.753 — the QC/protocol-count shortcut is again
+  the strongest non-clinical signal on secondary (known confound story).
+- Interpretation: VMD generalizes (consistent >spectral on both cohorts,
+  ~0.03-0.04 AUROC) and is a legitimate adaptive-spectral comparator +
+  candidate; it does not displace the signed-OT main pathway (slot_sot) or
+  clinical features.
+- Both runs completed: primary on CPU (5397 s) before the GPU came back;
+  secondary relaunched on GPU after driver recovery — `use_gpu: true`,
+  `baselines_vmd_leop_secondary_all_protocols_gpu`, 650 s vs the ~2-3 h CPU
+  estimate.
+
+**GPU driver recovery (2026-08-08):** the NVIDIA modules were missing for
+the newly booted kernel 7.0.0-28-generic (the upgrade from 6.17 dropped the
+nvidia-595-open build, which is why the driver died after the suspend
+earlier). Fixed by `sudo apt install nvidia-dkms-595-open`
+(upgraded 595.71→595.84, prebuilt modules for 7.0.0-28) + `sudo modprobe
+nvidia [nvidia_uvm nvidia_drm nvidia_modeset]`. `nvidia-smi` OK, cupy sees 1
+device, cuML imports; GPU runs are back to ~10-15 min.
+
+### 3.27 External datasets — Flinders ISCEV Control + URFU OculusGraphy (2026-08-08)
+
+Two external ERG datasets integrated as pipeline-native, typed data
+(plan `PLAN_INTEGRATION_EXTERNAL.md`; gates 1–6 done, gate 7 effect probes
+pending).
+
+**Flinders ISCEV Control ERG** (`src/pathway_erg/data/flinders.py`):
+- `Normal` sheet → 666 feature rows / 82 subjects / 5 protocols
+  (LA3 292, 30Hz 111, DA001 106, DA3 90, DA10 67); `FIGURES` sheet → 8
+  waveform traces at 0.512 ms steps (1953.125 Hz). 62 near-duplicate rows,
+  434 missing cells, 4 empty + 2 metadata-missing traces — **counted, never
+  dropped**.
+- Protocol map extends the enum with `DA001`, `DA3`, `DA10`; phantom second
+  FIGURES metadata blocks (e.g. `'193.703358'`) marked `metadata_missing=True`
+  instead of raising (the block-1 data legitimately overlaps).
+- All rows are healthy controls → `target_binary = 0` (eligible),
+  `flinders_labels_v1`.
+
+**URFU Pediatric and Adults ERG Database** (`src/pathway_erg/data/urfu.py`):
+- `01 Appendix 1.xlsx` block parser: 423 signal columns / 104 subjects across
+  5 protocols (Maximum 2.0 = 122, Photopic 2.0 = 106, 30 Hz flicker = 101,
+  Scotopic 2.0 = 74, Oscillatory Potentials = 20), 0.5 ms steps → 2000 Hz.
+  3 missing `#` subject cells bound to `URFU_UNLABELED_{sheet}_c{col}` ids;
+  1367 missing feature cells counted; `eye = None` (database has no eye
+  labels); OP columns → `WaveformKind.OP`. `02 Appendix 2.xlsx` **excluded**
+  (322 ~6-sample fragments, truncated strings, no time axis/protocol).
+- Diagnosis text exists per subject but is not yet mapped to target labels
+  (healthy/unhealthy split available per URFU papers) — gate-7 work.
+
+**Integration** (`build.py` FLINDERS/URFU blocks + `configs/data/local.yaml`):
+verified full build — 744 participants / 776 visits / 1730 sessions /
+11528 recordings (8 FLINDERS + 423 URFU new; LEOP/PERG counts byte-identical).
+`config.py` `_from_dict` extended for PEP 604 unions (`X | None`). `.gitignore`
+bug fixed: unanchored `data/` also ignored `src/pathway_erg/data/`.
+
+**Audit gate** (`audit.py`): flinders/urfu walked + license notes in
+`license_report.md` (Flinders **CC-BY-NC 4.0**; URFU IEEE DataPort
+10.21227/y0fh-5v04 + 10.21227/r1wb-pg25); `__MACOSX` junk excluded with a
+documented note; also fixed a latent bug where the detailed PERG license note
+was overwritten with `""`.
+
+**Web findings (research):** URFU wavelet-scalogram classification papers
+(Ricker wavelet + ViT, median bal-acc 0.83/0.85/0.88 for
+Maximum/Scotopic/Photopic; +19-20 % over a/b landmark features) and the
+Constable connection — the Flinders control ERG and the in-repo LEOPs dataset
+share the same PI (Paul Constable) and lab, making FLINDERS the closest
+healthy reference for LEOPs transfer.
+
+Tests: `tests/data/test_flinders.py`, `test_urfu.py`, `test_audit_external.py`
+(30 total in `tests/data/`), all green; ruff clean.
+
+### 3.28 External datasets — gate 7 effect probes (2026-08-08)
+
+Four probes from `PLAN_INTEGRATION_EXTERNAL.md` §7, all writing to versioned
+output subdirs under `artifacts/results/*` (frozen baseline artifacts never
+touched).  New modules `evaluation/external_coverage.py`,
+`evaluation/flinders_calibration.py`, `evaluation/urfu_sanity.py`,
+`evaluation/leop_la3_transfer.py`, `data/urfu_labels.py`; four CLI commands
+(`external-coverage`, `flinders-calibration`, `urfu-sanity`,
+`leop-la3-transfer`).
+
+- **Probe 1 — coverage/diversity** (`external_coverage.py`,
+  `artifacts/results/external_coverage/`): extended scope adds 187 subjects
+  (104 URFU + 83 Flinders), 800 sessions, 431 recordings over the original
+  557/930/11097 (LEOP 253 + PERG 304). Protocols/sites/ages all expanded;
+  labels: 54+27 URFU eligible after mapping, Flinders all healthy controls.
+- **Probe 2 — normative Flinders calibration** (`flinders_calibration.py`):
+  LEOP *Control* LA3 (n=139) vs Flinders healthy LA3 (n=292, source feature
+  rows) — a/b amplitude/latency distributions overlap (KS 0.146-0.230,
+  within-2SD 0.935-1.000; age-adjusted KS 0.146-0.230 with within-2SD
+  0.942-1.000). Healthy populations overlap, no site/protocol drift flag.
+- **Probe 3 — URFU supervised sanity** (`urfu_sanity.py`): explicit URFU
+  diagnosis mapping (healthy=54, reduced=27, ineligible=23 per
+  `urfu_labels_v1`, reviewer PENDING_CLINICAL_REVIEW) + held-out
+  participant-level logreg on Maximum 2.0 a/b features; **AUROC 0.727**
+  [0.568, 0.867], n=62 (45 healthy / 17 reduced) — the labels carry signal.
+- **Probe 4 — LEOP LA3 transfer** (`leop_la3_transfer.py`): LEOP Control-vs-ASD
+  on shared LA3 (n=204: 139 C / 65 ASD), per-subject a/b features; scaler
+  fitted on LEOP-train-only (baseline AUROC 0.570 [0.485, 0.657]) vs
+  scaler fitted on LEOP-train + 292 Flinders healthy features, no label
+  mixing (**extnorm 0.571** [0.487, 0.657]). Δ<0.001 → standardization is
+  robust to the healthy external reference; no transfer pip from norms.
+
+Tests: `tests/evaluation/test_external_coverage.py` (7),
+`tests/evaluation/test_flinders_calibration.py` (8),
+`tests/evaluation/test_urfu_sanity.py` (9),
+`tests/evaluation/test_leop_la3_transfer.py` (9) — all green.
+
+**Gate-7 summary:** both external datasets are integrated, parsed, audited,
+and probe-verified. They add healthy normative coverage (FLINDERS) and labeled
+signal-carrying waveforms (URFU) without disturbing the frozen LEOP/PERG
+build. Runs: `external-coverage` 3 min, `flinders-calibration` 15 s,
+`urfu-sanity` 30 s, `leop-la3-transfer` 30 s (all CPU).
+
+### 3.29 Phase 6 gate — fallback / confound shortcut review (2026-08-08)
+
+Formal written review of the confounding shortcuts that must be documented
+before any neural training starts (plan Section 8.6 / "no unexplained severe
+class imbalance" review; watch-list item 4).  New module
+`evaluation/confound_review.py` + CLI `confound-review`; artifacts in
+`artifacts/results/confounds/confound_review.{json,md}` (same locked QA
+tables the baselines use).
+
+- **1. Fallback-only label shortcut:** per-subject/visit fallback rate as
+  the *only* feature → LEOP 0.605, PERG 0.526, both well below the locked
+  biology band (slot_logreg 0.657-0.685, derot 0.687-0.689, §4.3/4.4).  The
+  fallback mask does **not** repackage class information into a cheap
+  channel the way availability/QC baselines do.
+- **2. Fallback physical explainability:** a physical-features classifier
+  (peak-to-peak, duration, falling slope, log-mass) predicts which components
+  used fallback at CV-AUROC 0.857 — i.e. fallbacks are an *explained quality
+  artifact* (small mass / extreme slopes / short duration), not unexplained
+  noise to be hunted down.
+- **3. Protocol-count availability:** per-LEOP-subject recording count alone
+  → AUROC 0.632, still below the availability gradient-boosting shortcut
+  baseline (0.782) but above slot biology — confirms the pipeline's
+  `primary_nine_step` cohort forbids `availability` (baselines.py raises) and
+  that `_n`/`_flagged_rate` confound columns must stay dropped (Phase 7).
+- **4. Label-permutation (reference):** the acceptance gate (Phase 9, §3.28)
+  already forces subject-level label permutation to chance; reviewed here and
+  passed.
+
+**Verdict: PASS** — no blocking confound shortcut found.  Phase 6 neural
+training is no longer blocked by the fallback/confound review: conditioned on
+(a) the locked `primary_nine_step` cohort, (b) no protocol-count or
+availability feature, (c) no fallback mask / missingness channel in the
+signal.  The review is advisory (it documents measured values), and
+re-runnable via `pathway_erg.cli confound-review`.
+
+### 3.30 Phase 6 increment 1 — GD data layer (2026-08-08)
+
+Plan Module 21.12 done.  New `data/datasets.py` (`LoadedCaches`,
+`ComponentDataset`, `build_bags`, `domain_balanced_batch_indices`) and
+`data/collate.py` (`collate_component_rows`, `collate_bag_units`).
+
+- `LoadedCaches` validates cache alignment: 23,069 components = curves = OT
+  rows; raises on misalignment.  `table()` merges components × recordings ×
+  locked `outer_v1` folds (subject-level fold map); raises if any component
+  lacks a locked fold.
+- `ComponentDataset(caches, dataset, outer_folds)` — LEOP/PERG rows aligned
+  to cache row index (253 / 336); rows expose `signal (128)`,
+  `signal_mask (128 bool)`, `ot_vector (135)`, `physical (8)`.
+- `build_bags` — one `BagUnit` per unit (LEOP 253 / PERG 336), sizes LEOP
+  6–280, PERG 4–20; rejects any unit spanning folds (ValueError).
+- Targets: 232/253 LEOP bags labeled (21 undiagnosed subjects carry
+  `target_binary=None` — by design); PERG target via visit lookup.
+- `domain_balanced_batch_indices` — deterministic LEOP/PERG interleave,
+  ragged tail allowed (plan §9.8).
+- Collators return fixed-shape NumPy (no framework import in data layer):
+  component batch `(B,1,128)/(B,128)/(B,135)/(B,8)`; bag batch pads to
+  longest bag in batch with explicit `component_mask`, and padding rows
+  carry NaN in `physical` (training loop must mask before pooling —
+  verified `test_collate_bag_padding`); `labels (B,) f64` with NaN =
+  unlabeled.
+- Tests: `tests/data/test_neural_datasets.py` (12).  Fixes: `BagUnit`
+  gained `target_binary` (visit lookup), `ComponentRow` gained `unit_id`.
+
+### 3.31 Phase 6 increment 1 — local neural stems (2026-08-08)
+
+Plan Module 21.13 draft.  New `models/raw_stem.py`, `models/ot_stem.py`,
+`models/local_fusion.py`.
+
+- `RawStem` — Conv1d 1→16 (k7·p3) → residual blocks 16→32/32→64 (k5/k3,
+  GroupNorm, skip, avg-pool ×2) → masked GPA+GMP → proj 64.
+- `OTStem` — 135→128→64 GELU + LayerNorm + dropout 0.1.
+- `LocalFusion` — descriptive sigmoid gate α over `[raw·α, ot·(1−α), phys]`,
+  linear to 128; returns α for audit.
+- Mask support: pooled valid mask zeroes padding before pooling, all-zero
+  mask → finite zeros (no NaN); masked pooling differs from unmasked (test).
+- No BatchNorm (plan §9.2; small bags); param count 87.7k
+  (135→128→64 + 1→64 conv stem + gate) — well under the 0.5–1.0M
+  full-model budget reserved for the later Phase-7 model.
+- Tests: `tests/models/test_local_stems.py` (12 tests: shape, determinism,
+  masked-pool semantics, gradients, NaN-free all-zero mask).
+  Data+model new totals: 134 passed in tests/data + tests/models; full
+  suite 305 passed (~4:37).
+
+### 3.32 Phase 6 — gated-attention aggregators (2026-08-08)
+
+Plan Module 21.15.  New `models/aggregators.py` with one parameterized
+gated-attention pooling core (`_GatedAttentionPool`) and the plan-named
+wrappers `ComponentToEyeAggregator`, `IntensityToEyeAggregator`,
+`EyeToParticipantAggregator`, `EyeToSessionAggregator`,
+`SessionToVisitAggregator`.
+
+- Attention per plan §9.8: `a_j ∝ exp{wᵀ[tanh(Vz_j)⊙σ(Uz_j)]}`, value =
+  token itself, `h = Σ_j a_j z_j`.
+- Masks-only semantics: masked slots get zero attention (softmax over
+  `-inf`), all-empty rows return an all-zero pooled token and zero
+  attention — no NaNs (plan §9.8 "missing elements are masked").
+- Tests `tests/models/test_aggregators.py` (8): attention sums, mask
+  respect, permutation invariance, determinism, empty row, single-element
+  bag, registry modules, shape/dtype validation.
+- Verified end-to-end on real LEOP_A60 (60 components, 2 eyes, 10
+  intensities): signal f64→f32 cast needed at torch boundary (raw cache
+  arrays are float64; collators cast, raw stacks don't); participant
+  token finite, eye attention ≈ balanced.
+
+### 3.33 Phase 6 — complete model (plan Module 21.16, 2026-08-08)
+
+`models/path_erg.py` — `build_model(config, pathway_graph) -> PathModel`
+with `encode_component` / `encode_bag` / `forward` (plan 21.16
+interfaces).
+
+- Composes raw/OT stems + local fusion + gated hierarchy + per-task
+  heads (128→64→1, plan §9.10); groups come from collator `group_eye` /
+  `group_intensity` codes.
+- Hierarchies: LEOP component→intensity→eye→participant; PERG
+  component→eye→participant — one gated-attention primitive
+  (`gather_by_group` + `promote_group_codes`) at every level.
+- Padded rows never pollute: NaN physical is zeroed before the stems
+  (component mask zeroes the fused token anyway); attention respects the
+  mask; all-empty pools are zero vectors.
+- Audit outputs (plan §9.11): per-level attention dict summing to
+  #groups (intensity), #eyes (eye), 1 (participant) on real LEOP/PERG
+  bags.
+- Labels are never read by the model (`test_no_label_metadata_in_input`).
+- Tests `tests/models/test_path_erg.py` (11): both task fwd/backwards
+  with finite grads, param budget < 1.5M (~92k), state-dict save/load
+  roundtrip, deterministic encode, attention sums, unknown-task guard,
+  group-code promotion semantics.
+- `tests/models` now 108 passed (~5 min); ruff clean.
+
+### 3.34 Phase 6 — losses, samplers, trainer (plan Module 21.17)
+
+`training/losses.py`, `training/samplers.py`, `training/trainer.py`
+(ssl.py / finetune.py deferred to the shared-expert stage).
+
+- `losses.py` — `positive_class_weight` (n_neg/(n_pos+eps), BCE semantics,
+  raises on empty positives), `FoldWeightedBCE` (NaN label = no target,
+  contributes nothing), per-fold weights from training labels only.
+- `samplers.py` — `BagSampler` (per-fold bag batches, rejects requested
+  folds absent from the bag list, explicit seed, `resume(state)` with RNG
+  restore for exact stream continuation).
+- `trainer.py` — `Trainer` + `TrainConfig`: AdamW, warmup+cosine
+  (`_WarmupCosine`), grad clip 1.0, FP32 only (plan §14.11), per-fold
+  positive-weight BCE, early stop by inner AUROC with best-checkpoint
+  restore, per-epoch train loss / train+val AUROC / grad norm / fusion
+  gate mean logs, checkpoint with optimizer+scheduler+sampler+config.
+- Smoke-verified end-to-end on real LEOP fold 0 (3 epochs, lr 3e-4):
+  weights move, loss finite, val AUROC reaches 0.714.
+- Tests `tests/training/test_training.py` (9): loss algebra on known
+  tensors, NaN-label exclusion, sampler fold restriction + foreign-fold
+  rejection + held-out unit IDs never reachable + resume equivalence,
+  one optimizer update changes weights, checkpoint roundtrip.
+- Full suite: 324 + 9 = 333 passed; ruff clean.
+
+### 3.35 Phase 6 — evaluation & statistics (plan Module 21.18, 2026-08-08)
+
+`evaluation/metrics.py` extended + `evaluation/comparisons.py`,
+`evaluation/calibration.py` (plan 21.18 interfaces).
+
+- `evaluate_predictions(prediction_table, endpoint) -> MetricReport` —
+  all point metrics at unit level (AUROC primary, AUPRC/balanced-acc/
+  F1/MCC/sens/spec/Brier/ECE; plan §18.1), requires a `cluster` column
+  (§18.3), raises on degenerate single-class tables.
+- `cluster_bootstrap(prediction_table, cluster_col, metric, seed) ->
+  BootstrapReport` — stratified cluster bootstrap percentile CIs
+  (§18.3), ≥2000 reps default, skipped replicates counted explicitly.
+- `paired_compare(pred_a, pred_b, cluster_col) -> ComparisonReport` —
+  paired cluster bootstrap of M_A−M_B with percentile CI + unit-level
+  sign-flip permutation p-value (§18.4); rejects mismatched unit sets
+  (exact ID pairing).
+- `fit_calibrator(inner_oof_logits, labels) -> Calibrator` — temperature
+  calibration on inner OOF only (§14.10), gradient descent on BCE, ECE
+  reported; rejects degenerate fits.
+- Smoke on real data: 5-epoch LEOP fold-0 model → 47 units, AUROC 0.560
+  [0.352–0.746] bootstrap, calibrated temp 1.00, ECE 0.17.
+- Tests `tests/evaluation/test_evaluation_stats.py` (11): known-metric
+  AUROC=1 case, cluster required, degenerate class rejection, bootstrap
+  CI sanity, exact ID pairing + mismatch rejection, calibrator
+  overconfidence correction + degenerate rejection + apply shape.
+- Full suite 333 + 11 = 344 passed; ruff clean.
+
 ## 4. Key findings so far (numbers to remember)
 
 ### 4.1 Transport math behaves correctly (E1)
@@ -647,9 +1021,12 @@ Section 29 confound strategy).
 3. **Determinism:** any rebuild with identical inputs must produce identical
    hashes (`data_hash` in `build_manifest.json`).
 4. **Fallback classifier:** AUC 0.857 means landmark fallbacks are systematic —
-   do not start neural training until this review is documented.
+   review now documented (2026-08-08, §3.29): fallbacks are a physically
+   explained quality artifact; the fallback→label shortcut is weak (0.605/0.526),
+   so Phase 6 can proceed subject to the §3.29 lock-ins.
 5. **Shortcut models:** LEOP availability/quality AUC ≈ 0.75–0.78 nearly match
-   biological signal; the E0 decision rule (plan Section 17) applies.
+   biological signal; the E0 decision rule (plan Section 17) applies.  The
+   protocol-count/availability channel stays forbidden on `primary_nine_step`.
 6. **sOT edge cases:** near-flat traces (both masses zero), truncated late
    support, negative-time LEOP baseline — must be flagged, never fabricated.
 7. **Not yet existing (do not expect to find):** `signal/vmd.py`,
@@ -738,8 +1115,38 @@ correctness first, then a fair old-vs-new comparison:
 - **Phase 9 — reporting/acceptance:** balanced acc, sens/spec/precision/F1,
   confusion matrix, clustered CIs, non-empty config/data/split/label hashes,
   label-permutation ≈ chance, acceptance checklist.
-- Then: the corrected VMD baseline (`signal/vmd.py`, plan Section 15), Phase 6+
-  neural work as previously planned.
+- **VMD comparator — plan Section 15: DONE (2026-08-08, §3.26):**
+  `signal/vmd.py` (calibrated, deterministic) + `signal/vmd_cache.py`
+  (`vmd_modes.zarr`, baseline-only cache), `cache-vmd` CLI, `vmd` registered
+  in E4 baselines (logreg/svm_rbf/histgb per plan 15.3), real-data cache
+  tests; primary nine-step: `vmd_svm_rbf` 0.677 (beats spectral 0.642 and
+  slot_sot 0.642 → candidate model per plan 15.5); secondary: 0.701 (above
+  spectral 0.663, below slot_sot 0.719); GPU driver restored
+  (nvidia-dkms-595-open for kernel 7.0.0-28).
+- **Phase 9 — acceptance gate: DONE (2026-08-08):** `evaluation/acceptance.py`
+  + CLI `run-acceptance` (with `--reuse-existing` to re-verify without
+  refits).  Gates: provenance hashes (config/data/split/label non-empty),
+  full metric set incl. confusion matrix at locked 0.5, paired OOF
+  predictions, and label-permutation ≈ chance.  **Verdict: PASS** (14/14
+  checks) on `e4_acceptance_gate_p9`.  Details: base run AUROCs intact
+  (12 methods × 3 perm seeds); first fixed-band check failed at 0.163 vs
+  0.08 — diagnosis: the fixed band is uncalibrated for a subject-clustered
+  design (constant-per-fold baselines like `prevalence` sit at 0.500 in
+  every fold but deviate pooled; the null's own 95th percentile is 0.144).
+  Gate now runs a deterministic subject-clustered MC null (2000 draws,
+  labels shuffled between subjects, nesting preserved): observed seed-meaned
+  max deviation 0.1165, null p = 0.304 → consistent with chance, no
+  leakage.  The fixed band is reported as secondary info and does not gate.
+  Bug fixed along the way: `run_label_permutation_gate` previously skipped
+  the base run.
+- **Fallback/confound review: DONE (2026-08-08, §3.29):** written pre-Phase-6
+  gate (`confound_review.py` + CLI `confound-review`). No blocking shortcut:
+  fallback-only LEOP 0.605 / PERG 0.526 below the biology band; fallback
+  mask physically explained (0.857); protocol-count 0.632 < availability
+  gb (0.782) but the cohort forbids it anyway. **Verdict: PASS** — Phase 6
+  neural work is unblocked subject to the 3 conditioning lock-ins in §3.29.
+- Then: Phase 6+ neural work as previously planned (now unblocked by the
+  fallback/confound review gate).
 
 ---
 
@@ -775,6 +1182,11 @@ correctness first, then a fair old-vs-new comparison:
 .venv/bin/python -m pathway_erg.cli simulate-sharing
 .venv/bin/python -m pathway_erg.cli run-baselines \
   --experiment configs/experiments/e4_baselines.yaml
+.venv/bin/python -m pathway_erg.cli run-acceptance \
+  --experiment configs/experiments/e4_acceptance_gate_p9.yaml --seeds 0 1 2
+# Pre-Phase-6 fallback/confound shortcut review (verdict PASS unblocks Phase 6)
+.venv/bin/python -m pathway_erg.cli confound-review \
+  --data configs/data/local.yaml
 ```
 
 **After any failure:** check (a) the failing manifest under `artifacts/*/manifest.json`,

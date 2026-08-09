@@ -1,0 +1,28 @@
+# VMD comparator on the LEOP secondary all-protocols cohort (plan 15.5
+# generalization check). Same reference methods as the primary p9 run; the
+# vmd method reads the same vmd_modes.zarr cache (cohort masks applied as
+# for spectral).
+name: e4_vmd_leop_secondary_all_protocols_p9
+fold_version: v1
+datasets: ["LEOP"]
+leop_cohort: secondary_all_protocols
+e0_methods: ["prevalence", "metadata", "quality"]
+e4_methods:
+  - clinical
+  - slot_sot
+  - spectral
+  - scattering
+  - vmd
+demographic_methods:
+  - clinical
+models: ["logreg", "svm_rbf", "histgb"]
+outer_folds: [0, 1, 2, 3, 4]
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+pca_variance: 0.95
+max_pca_components: 32
+seed: 777
+legacy: false
+use_gpu: true
+output_subdir: baselines_vmd_leop_secondary_all_protocols_gpu

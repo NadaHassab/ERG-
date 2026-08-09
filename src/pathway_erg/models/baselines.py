@@ -60,6 +60,7 @@ from ..constants import (
     SVM_GAMMA_GRID,
 )
 from ..evaluation.metrics import binary_metrics, cluster_bootstrap_ci
+from ..provenance import RunManifest
 from ..signal.component_cache import CACHE_SCHEMA_VERSION, cache_paths, load_cache_manifest
 from .qc_flags import is_hard_invalid
 
@@ -1039,6 +1040,10 @@ def run_baselines(cfg: BaselinesConfig, data_cfg: DataConfig) -> BaselineResults
     )
     participants = pd.read_parquet(root / "data" / "interim" / "participants.parquet")
     visits = pd.read_parquet(root / "data" / "interim" / "visits.parquet")
+    if cfg.label_permutation_seed is not None:
+        visits = _permute_labels_subject_level(
+            visits, cfg.label_permutation_seed, participants
+        )
     recordings = pd.read_parquet(root / "data" / "interim" / "recordings.parquet")
     cache = cache_paths(root, CACHE_SCHEMA_VERSION)
     load_cache_manifest(root, CACHE_SCHEMA_VERSION)
@@ -1061,16 +1066,31 @@ def run_baselines(cfg: BaselinesConfig, data_cfg: DataConfig) -> BaselineResults
     spectral_names = list(load_cache_manifest(root, CACHE_SCHEMA_VERSION)["extra"]["spectral_feature_names"])
     vmd_vectors: np.ndarray | None = None
     vmd_names: list[str] | None = None
+    vmd_cfg_key: str | None = None
     if "vmd" in methods:
         from ..signal.vmd import VMDConfig
         from ..signal.vmd_cache import load_vmd_cache
 
+        vmd_kwargs = dict(cfg.vmd or {})
+        vmd_cfg = VMDConfig(**vmd_kwargs)
+        vmd_cfg_key = vmd_cfg.key
         main_hash = load_cache_manifest(root, CACHE_SCHEMA_VERSION)["extra"]["config_hash"]
-        vmd_vectors, vmd_names = load_vmd_cache(root, VMDConfig(), main_hash)
+        vmd_vectors, vmd_names = load_vmd_cache(root, vmd_cfg, main_hash)
 
     frames: list[pd.DataFrame] = []
     metrics: dict[str, dict[str, float | None]] = {}
     notes: dict[str, object] = {}
+    if vmd_cfg_key is not None:
+        notes["vmd_config"] = {
+            "key": vmd_cfg_key,
+            "grid_point": dict(cfg.vmd or {}),
+        }
+    if cfg.label_permutation_seed is not None:
+        notes["label_permutation"] = {
+            "seed": cfg.label_permutation_seed,
+            "policy": "subject-level permutation of target_binary; prevalence "
+            "and subject clustering preserved; canonical data untouched",
+        }
 
     for dataset in cfg.datasets:
         units = _load_units(dataset, participants, visits, folds)
@@ -1305,6 +1325,7 @@ def run_baselines(cfg: BaselinesConfig, data_cfg: DataConfig) -> BaselineResults
                     }
                     continue
                 point = binary_metrics(y, p)
+                point["confusion_matrix_at_0_5"] = _confusion_counts(y, p)
                 ci = cluster_bootstrap_ci(
                     y,
                     p,
@@ -1355,6 +1376,45 @@ def run_baselines(cfg: BaselinesConfig, data_cfg: DataConfig) -> BaselineResults
     return BaselineResults(predictions=predictions, metrics=metrics, notes=notes)
 
 
+def _confusion_counts(y: np.ndarray, p: np.ndarray, threshold: float = 0.5) -> dict[str, int]:
+    """Confusion matrix at a fixed threshold (locked at 0.5, never tuned)."""
+    pred = (np.asarray(p) >= threshold).astype(int)
+    yt = np.asarray(y, dtype=int)
+    return {
+        "threshold": threshold,
+        "tp": int(((pred == 1) & (yt == 1)).sum()),
+        "fp": int(((pred == 1) & (yt == 0)).sum()),
+        "tn": int(((pred == 0) & (yt == 0)).sum()),
+        "fn": int(((pred == 0) & (yt == 1)).sum()),
+    }
+
+
+def _permute_labels_subject_level(
+    visits: pd.DataFrame, seed: int, participants: pd.DataFrame
+) -> pd.DataFrame:
+    """Deterministic subject-level label permutation (Phase 9 chance gate).
+
+    Each subject keeps its visit rows but receives a label drawn from a
+    subject-level permutation of the observed labels (prevalence preserved,
+    subject clustering preserved).  The permutation is applied to the copy of
+    ``visits`` used by this run only — canonical data files are untouched.
+    """
+    rng = np.random.default_rng(int(seed))
+    out = visits.copy()
+    labels_by_subject = (
+        out[["global_subject_id", "target_binary"]]
+        .drop_duplicates("global_subject_id")
+        .reset_index(drop=True)
+    )
+    permuted = rng.permutation(labels_by_subject["target_binary"].to_numpy())
+    shuffled = labels_by_subject.copy()
+    shuffled["target_binary"] = permuted
+    out = out.drop(columns=["target_binary"]).merge(
+        shuffled, on="global_subject_id", how="left"
+    )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Artifacts
 # ---------------------------------------------------------------------------
@@ -1365,6 +1425,7 @@ def write_baselines_artifacts(
     results: BaselineResults,
     cfg: BaselinesConfig,
     pywt_note: str | None = None,
+    experiment_path: str | Path | None = None,
 ) -> Path:
     """Write predictions.parquet, metrics.json, manifest.json, and the HTML report.
 
@@ -1419,5 +1480,78 @@ Pooled out-of-fold predictions; 95% cluster-bootstrap CI on AUROC.</p>
     if pywt_note:
         manifest.extra["environment_note"] = pywt_note
     manifest.code_revision = git_revision(Path.cwd())
+    if not cfg.legacy:
+        # Legacy is the frozen Phase-0 snapshot: Phase 9 provenance hashes
+        # are a v2-pipeline gate, so legacy runs keep their original manifest.
+        _populate_run_hashes(manifest, Path(artifact_root), cfg, experiment_path)
     manifest.write_atomic(out_dir / "manifest.json")
     return report_path
+
+
+def _populate_run_hashes(
+    manifest: RunManifest,
+    root: Path,
+    cfg: BaselinesConfig,
+    experiment_path: str | Path | None = None,
+) -> None:
+    """Non-empty config/data/split/label hashes (v2 plan Phase 9 gate).
+
+    Phase 9 requires every run to record what it consumed: the experiment
+    config (canonical hash + source-file hash), the preprocessing config
+    (from the component-cache manifest), the canonical data tables, the
+    frozen splits, and the label mapping.  Any missing input fails loudly
+    instead of writing empty hashes.
+    """
+    from ..config import config_hash
+    from ..provenance import sha256_file
+
+    root = Path(root)
+    manifest.config_hash = config_hash(cfg)
+    if experiment_path is not None:
+        experiment_path = Path(experiment_path)
+        manifest.extra["config_experiment_hash"] = sha256_file(experiment_path)
+        manifest.extra["config_experiment_path"] = str(experiment_path)
+
+    cache_manifest = load_cache_manifest(root, CACHE_SCHEMA_VERSION)
+    manifest.extra["preprocessing_config_hash"] = cache_manifest["extra"]["config_hash"]
+
+    data_files = [
+        root / "data" / "interim" / "participants.parquet",
+        root / "data" / "interim" / "visits.parquet",
+        root / "data" / "interim" / "recordings.parquet",
+        cache_paths(root, CACHE_SCHEMA_VERSION)["components_parquet"],
+        cache_paths(root, CACHE_SCHEMA_VERSION)["manifest"],
+        root / "data" / "interim" / "labels.parquet",
+    ]
+    missing = [str(p) for p in data_files if not p.is_file()]
+    if missing:
+        raise FileNotFoundError(f"data hash inputs missing: {missing}")
+    manifest.data_hash = _combined_sha256(data_files)
+
+    split_files = [
+        root / "data" / "splits" / OUTER_FOLDS_TEMPLATE.format(version=cfg.fold_version),
+        root / "data" / "splits" / INNER_FOLDS_TEMPLATE.format(version=cfg.fold_version),
+    ]
+    missing = [str(p) for p in split_files if not p.is_file()]
+    if missing:
+        raise FileNotFoundError(f"split hash inputs missing: {missing}")
+    manifest.split_hash = _combined_sha256(split_files)
+
+    label_files = [
+        root / "data" / "interim" / "labels.parquet",
+        root / "data" / "manifests" / "diagnosis_mapping_perg.csv",
+    ]
+    label_files = [p for p in label_files if p.is_file()]
+    if not label_files:
+        raise FileNotFoundError("label mapping inputs missing")
+    manifest.label_mapping_hash = _combined_sha256(label_files)
+
+
+def _combined_sha256(paths: list[Path]) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    for p in paths:
+        h.update(p.name.encode("utf-8"))
+        h.update(p.read_bytes())
+    return h.hexdigest()

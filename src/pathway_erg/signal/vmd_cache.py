@@ -28,9 +28,34 @@ from .vmd import FrequencyConvention, VMDConfig, calibrate_vmd_frequency, vmd_fe
 VMD_CACHE_SCHEMA_VERSION = 1
 
 
-def vmd_cache_paths(artifact_root: str | Path, schema_version: int = VMD_CACHE_SCHEMA_VERSION) -> dict[str, Path]:
+def vmd_cache_paths(
+    artifact_root: str | Path,
+    vmd_cfg_or_schema: VMDConfig | int | None = None,
+    schema_version: int = VMD_CACHE_SCHEMA_VERSION,
+) -> dict[str, Path]:
+    """Paths for the VMD mode cache.
+
+    The default comparator config (``VMDConfig()``, K=5/alpha=2000/tol=1e-7/
+    pad=25 ms) keeps the plain ``vmd_modes.zarr`` name for backward
+    compatibility with the original cache; any other config (plan 15.2 grid
+    points) gets a config-keyed suffix so grid caches never clobber the
+    reference cache or each other.
+
+    ``vmd_cfg_or_schema`` accepts either a ``VMDConfig`` or (legacy callers)
+    an integer schema version.
+    """
     artifact_root = Path(artifact_root)
-    suffix = "" if schema_version <= 1 else f"_v{schema_version}"
+    if isinstance(vmd_cfg_or_schema, VMDConfig):
+        vmd_cfg: VMDConfig | None = vmd_cfg_or_schema
+    elif vmd_cfg_or_schema is None:
+        vmd_cfg = None
+    else:
+        vmd_cfg = None
+        schema_version = int(vmd_cfg_or_schema)
+    if vmd_cfg is None or vmd_cfg == VMDConfig():
+        suffix = "" if schema_version <= 1 else f"_v{schema_version}"
+    else:
+        suffix = f"_{vmd_cfg.key}" if schema_version <= 1 else f"_v{schema_version}_{vmd_cfg.key}"
     return {
         "vmd_zarr": artifact_root / "data" / "arrays" / f"vmd_modes{suffix}.zarr",
         "manifest": artifact_root / "data" / "manifests" / f"vmd_cache_manifest{suffix}.json",
@@ -68,15 +93,24 @@ def cache_vmd(
     """
     import multiprocessing as mp
 
-    from .component_cache import process_recording
 
     artifact_root = Path(artifact_root)
     convention = convention or calibrate_vmd_frequency()
-    out = vmd_cache_paths(artifact_root, VMD_CACHE_SCHEMA_VERSION)
+    out = vmd_cache_paths(artifact_root, vmd_cfg, VMD_CACHE_SCHEMA_VERSION)
     main = cache_paths(artifact_root)
     components_df = pd.read_parquet(main["components_parquet"])
     recordings = pd.read_parquet(artifact_root / "data" / "interim" / "recordings.parquet")
     waveforms = _load_waveforms(artifact_root)
+
+    # The VMD cache is aligned 1:1 with components_v4 order.  Only recordings
+    # that produced cached components belong to the modeling population;
+    # later-added recordings (e.g. streamed URFU/FLINDERS rows) have no cached
+    # components and are skipped, exactly like the main cache build does.
+    cache_rec_ids = set(components_df["global_recording_id"])
+    recordings = recordings[recordings["global_recording_id"].isin(cache_rec_ids)]
+    recordings = recordings[
+        recordings["global_recording_id"].isin(set(waveforms))
+    ].reset_index(drop=True)
 
     jobs = int(jobs)
     if jobs > 1:
@@ -157,7 +191,7 @@ def load_vmd_cache(
     / VMD config key do not match (stale caches are never reused).
     """
     artifact_root = Path(artifact_root)
-    out = vmd_cache_paths(artifact_root, schema_version)
+    out = vmd_cache_paths(artifact_root, vmd_cfg, schema_version)
     manifest_path = out["manifest"]
     if not manifest_path.is_file():
         raise ValueError(

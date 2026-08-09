@@ -1,0 +1,22 @@
+# VMD comparator grid point K=4 (plan 15.2). K-invariant methods are omitted;
+# their primary nine-step results already exist in the K=5 reference run.
+name: e4_vmd_k_sweep_K4_gpu_p9
+fold_version: v1
+datasets: ["LEOP"]
+leop_cohort: primary_nine_step
+e0_methods: []
+e4_methods: ["vmd"]
+demographic_methods: []
+models: ["logreg", "svm_rbf", "histgb"]
+outer_folds: [0, 1, 2, 3, 4]
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+pca_variance: 0.95
+max_pca_components: 32
+seed: 777
+legacy: false
+use_gpu: true
+output_subdir: baselines_vmd_k_sweep_K4_gpu_p9
+vmd:
+  K: 4

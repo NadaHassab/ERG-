@@ -45,7 +45,13 @@ from .signed_ot import signed_derivative_ot
 from .smoothing import smooth_for_analysis
 from .spectral import spectral_feature_names, spectral_features
 from .validity import check_hard_validity, interpolate_isolated_nan
-from .vmd import VMDConfig, calibrate_vmd_frequency, decompose_vmd, extract_vmd_features
+from .vmd import (
+    FrequencyConvention,
+    VMDConfig,
+    calibrate_vmd_frequency,
+    decompose_vmd,
+    extract_vmd_features,
+)
 
 CACHE_SCHEMA_VERSION = 4
 
@@ -173,6 +179,7 @@ def process_recording(
         ]
     rows: list[dict] = []
     arrays: dict[str, dict[str, np.ndarray]] = {}
+    diagnostics: dict[str, dict[str, float]] = {}
     for seg in segments:
         if seg.canonicalization_type == "relative_phase":
             canonical_time = np.asarray(seg.canonical_time, dtype=float)
@@ -208,8 +215,9 @@ def process_recording(
             pre_cfg.spectral.dominant_range,
         )
         vmd_vector: np.ndarray | None = None
+        vmd_diag: dict[str, float] | None = None
         if vmd_cfg is not None:
-            vmd_vector = _vmd_vector(seg, median_dt, vmd_cfg)
+            vmd_vector, vmd_diag = _vmd_vector(seg, median_dt, vmd_cfg)
         component_id = seg.component_id.value
         array_key = f"{record['global_recording_id']}/{component_id}"
         rows.append(
@@ -243,7 +251,9 @@ def process_recording(
             "spectral_vector": spectral,
             "vmd_vector": vmd_vector,
         }
-    return {"valid": True, "rows": rows, "arrays": arrays}
+        if vmd_diag is not None:
+            diagnostics[array_key] = vmd_diag
+    return {"valid": True, "rows": rows, "arrays": arrays, "diagnostics": diagnostics}
 
 
 def _smooth(time_ms, signal, median_dt, smoothing):
@@ -286,12 +296,14 @@ def _vmd_vector(
     seg,
     median_dt: float,
     cfg: VMDConfig,
-) -> np.ndarray:
-    """VMD feature vector for one physical segment window (plan 15.3).
+) -> tuple[np.ndarray, dict[str, float]]:
+    """VMD feature vector + diagnostics for one physical segment window.
 
     Runs the primary decomposition plus the ``stability_neighbors``
     decompositions (same alpha/tol/padding, neighbouring K) so the per-mode
-    stability feature is well defined.  Deterministic (init=1).
+    stability feature is well defined.  Deterministic (init=1).  The returned
+    diagnostics power the plan Section 15.2 hyperparameter grid (reconstruction
+    error, residual energy, convergence, mode energies, frequency spread).
     """
     fs = 1000.0 / median_dt
     convention = _calibrated_vmd_convention()
@@ -300,7 +312,20 @@ def _vmd_vector(
     neighbors = [
         decompose_vmd(seg.time_ms, seg.signal_uv, nc, convention) for nc in neighbor_cfgs
     ]
-    return extract_vmd_features(primary, cfg, fs, neighbors)
+    features = extract_vmd_features(primary, cfg, fs, neighbors)
+    energy = np.asarray(primary.mode_energy, dtype=float)
+    freqs = np.asarray(primary.center_freqs_hz, dtype=float)
+    diag = {
+        "recon_rms_rel": float(primary.recon_rms_rel),
+        "residual_energy_rel": float(primary.residual_energy_rel),
+        "converged": bool(primary.converged),
+        "n_iterations": float(primary.n_iterations),
+        "n_modes_above_1pct_energy": int(
+            (energy / (energy.sum() + 1e-12) > 0.01).sum()
+        ),
+        "center_freq_spread_hz": float(np.nanmax(freqs) - np.nanmin(freqs)),
+    }
+    return features, diag
 
 
 def cache_components(

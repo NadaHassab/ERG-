@@ -1,0 +1,30 @@
+# VMD (variational mode decomposition) comparator baselines, plan Section 15.
+# The VMD feature cache (vmd_modes.zarr, fixed comparator config K=5,
+# alpha=2000, tol=1e-7, pad=25ms) is built by cache-vmd; this run pairs VMD
+# with the adaptive-spectral direct comparisons on the decisive primary
+# task (plan 15.5: keep the comparator only if it beats the signed-OT / main
+# pathway or spectral baselines).
+name: e4_vmd_leop_primary_nine_step_p9
+fold_version: v1
+datasets: ["LEOP"]
+leop_cohort: primary_nine_step
+e0_methods: ["prevalence", "metadata", "quality"]
+e4_methods:
+  - clinical
+  - slot_sot
+  - spectral
+  - scattering
+  - vmd
+demographic_methods:
+  - clinical
+models: ["logreg", "svm_rbf", "histgb"]
+outer_folds: [0, 1, 2, 3, 4]
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+pca_variance: 0.95
+max_pca_components: 32
+seed: 777
+legacy: false
+use_gpu: false
+output_subdir: baselines_vmd_leop_primary_nine_step_p9

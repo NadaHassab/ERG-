@@ -187,6 +187,39 @@ def cmd_cache_vmd(args) -> int:
     return 0
 
 
+def cmd_vmd_grid(args) -> int:
+    """Plan Section 15.2 hyperparameter grid over a recording subsample."""
+    from .signal.vmd_grid import sweep_vmd_grid
+
+    data_cfg = load_config(DataConfig, args.data)
+    pre_cfg = load_config(PreprocessingConfig, args.preprocessing)
+    summary = sweep_vmd_grid(
+        data_cfg.artifact_root,
+        pre_cfg,
+        n_recordings=args.n_recordings,
+        jobs=args.jobs,
+        tag=args.tag,
+    )
+    print(json.dumps(summary, indent=2, sort_keys=True, default=str))
+    return 0
+
+
+def cmd_run_acceptance(args) -> int:
+    from .config import BaselinesConfig
+    from .evaluation.acceptance import run_label_permutation_gate, write_acceptance_report
+
+    data_cfg = load_config(DataConfig, args.data)
+    cfg = load_config(BaselinesConfig, args.experiment)
+    seeds = tuple(args.seeds)
+    gate = run_label_permutation_gate(
+        cfg, data_cfg, seeds=seeds, reuse_existing=args.reuse_existing
+    )
+    report = write_acceptance_report(data_cfg.artifact_root, cfg, gate)
+    print(json.dumps(gate, indent=2, sort_keys=True, default=str))
+    print(f"acceptance report: {report}")
+    return 0 if gate.get("passed") else 1
+
+
 def cmd_validate_transport(args) -> int:
     from .simulations.transport_validation import run_transport_battery, write_transport_report
 
@@ -220,7 +253,13 @@ def cmd_run_baselines(args) -> int:
     data_cfg = load_config(DataConfig, args.data)
     cfg = load_config(BaselinesConfig, args.experiment)
     results = run_baselines(cfg, data_cfg)
-    report = write_baselines_artifacts(data_cfg.artifact_root, results, cfg, pywt_note=_pywt_note())
+    report = write_baselines_artifacts(
+        data_cfg.artifact_root,
+        results,
+        cfg,
+        pywt_note=_pywt_note(),
+        experiment_path=Path(args.experiment),
+    )
     lines = []
     for key in sorted(results.metrics):
         m = results.metrics[key]
@@ -237,6 +276,19 @@ def cmd_run_baselines(args) -> int:
     print("\n".join(lines))
     print(f"report: {report}")
     return 0
+
+
+def cmd_run_confound_review(args) -> int:
+    from .config import DataConfig
+    from .evaluation.confound_review import run_confound_review
+
+    data_cfg = load_config(DataConfig, args.data)
+    r = run_confound_review(data_cfg.artifact_root)
+    print(f"verdict: {r['verdict']}")
+    for c in r["checks"]:
+        print(f"[{c['outcome']:>4}] {c['check']}: {c['measurement']}")
+    print(f"report: {Path(data_cfg.artifact_root) / 'results' / 'confounds' / 'confound_review.md'}")
+    return 0 if r["verdict"] == "PASS" else 1
 
 
 def cmd_run_perg_sensitivity(args) -> int:
@@ -266,6 +318,65 @@ def cmd_run_perg_sensitivity(args) -> int:
                 f"bal_acc={m.get('balanced_accuracy', 0):.4f}"
             )
     print(f"metrics: {out_dir / 'metrics.json'}")
+    return 0
+
+
+def cmd_run_external_coverage(args) -> int:
+    from .config import DataConfig
+    from .evaluation.external_coverage import run_coverage_report
+
+    data_cfg = load_config(DataConfig, args.data)
+    report = run_coverage_report(data_cfg.artifact_root)
+    print(json.dumps({"delta": report["delta"]}, indent=2, sort_keys=True, default=str))
+    print(f"report: {Path(data_cfg.artifact_root) / 'results' / 'external_coverage' / 'coverage_report.md'}")
+    return 0
+
+
+def cmd_run_flinders_calibration(args) -> int:
+    from .config import DataConfig
+    from .evaluation.flinders_calibration import run_flinders_calibration
+
+    data_cfg = load_config(DataConfig, args.data)
+    report = run_flinders_calibration(data_cfg.artifact_root)
+    for feat, r in report["features"].items():
+        print(
+            f"{feat:<8} KS={r['ks_raw']['statistic']:.3f} "
+            f"(adj {r['ks_age_adjusted']['statistic']:.3f}) "
+            f"within2SD={r['within_2sd_raw']:.3f} "
+            f"(adj {r['within_2sd_age_adjusted']:.3f})"
+        )
+    print(f"report: {Path(data_cfg.artifact_root) / 'results' / 'flinders_calibration' / 'calibration_report.md'}")
+    return 0
+
+
+def cmd_run_urfu_sanity(args) -> int:
+    from .config import DataConfig
+    from .evaluation.urfu_sanity import run_urfu_sanity
+
+    data_cfg = load_config(DataConfig, args.data)
+    rep = run_urfu_sanity(data_cfg.artifact_root, use_gpu=args.gpu, n_folds=args.folds)
+    low, high = rep["auroc_ci_95"]["low"], rep["auroc_ci_95"]["high"]
+    low_s, high_s = ("—" if low is None else f"{low:.3f}"), ("—" if high is None else f"{high:.3f}")
+    print(
+        f"AUROC {rep['auroc']:.3f} [{low_s}, {high_s}] "
+        f"bal_acc {rep['balanced_accuracy']:.3f} "
+        f"(n={rep['n_subjects']}, healthy={rep['n_healthy']}, reduced={rep['n_reduced']})"
+    )
+    print(f"report: {Path(data_cfg.artifact_root) / 'results' / 'urfu_sanity' / 'sanity_report.md'}")
+    return 0
+
+
+def cmd_run_leop_la3_transfer(args) -> int:
+    from .config import DataConfig
+    from .evaluation.leop_la3_transfer import run_leop_la3_transfer
+
+    data_cfg = load_config(DataConfig, args.data)
+    rep = run_leop_la3_transfer(data_cfg.artifact_root, n_folds=args.folds)
+    for scheme, r in rep["schemes"].items():
+        low, high = r["ci_95"]["low"], r["ci_95"]["high"]
+        low_s, high_s = ("—" if low is None else f"{low:.3f}"), ("—" if high is None else f"{high:.3f}")
+        print(f"  {scheme:<9} AUROC {r['auroc']:.3f} [{low_s}, {high_s}]")
+    print(f"report: {Path(data_cfg.artifact_root) / 'results' / 'leop_la3_extnorm_transfer' / 'transfer_report.md'}")
     return 0
 
 
@@ -331,24 +442,79 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("cache-vmd", help="VMD mode feature cache (baseline-only)")
     p.add_argument("--data", default="configs/data/local.yaml")
     p.add_argument("--preprocessing", default="configs/preprocessing/reference.yaml")
-    p.add_argument("--k", type=int, default=5)
+    p.add_argument("--k", type=int, default=5, help="mode count K (plan 15.2 grid)")
     p.add_argument("--alpha", type=float, default=2000.0)
     p.add_argument("--tol", type=float, default=1e-7)
-    p.add_argument("--pad-ms", type=float, default=25.0)
+    p.add_argument("--pad-ms", type=float, default=25.0, help="mirror pad in ms")
     p.add_argument("--max-iter", type=int, default=500)
     p.add_argument("--neighbor-k", type=int, nargs="+", default=[4, 6])
     p.add_argument("--jobs", type=int, default=1)
     p.set_defaults(func=cmd_cache_vmd)
+
+    p = sub.add_parser(
+        "vmd-grid",
+        help="plan 15.2 VMD hyperparameter grid on a recording subsample",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument("--preprocessing", default="configs/preprocessing/reference.yaml")
+    p.add_argument("--n-recordings", type=int, default=500)
+    p.add_argument("--jobs", type=int, default=1)
+    p.add_argument("--tag", default="s15")
+    p.set_defaults(func=cmd_vmd_grid)
 
     p = sub.add_parser("run-baselines", help="E0/E4 classical baseline suite")
     p.add_argument("--data", default="configs/data/local.yaml")
     p.add_argument("--experiment", default="configs/experiments/e4_baselines.yaml")
     p.set_defaults(func=cmd_run_baselines)
 
+    p = sub.add_parser("run-acceptance", help="Phase 9 acceptance gates (hashes, metrics, label permutation)")
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument("--experiment", default="configs/experiments/e4_baselines.yaml")
+    p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    p.add_argument(
+        "--reuse-existing",
+        action="store_true",
+        help="recompute verdict from existing predictions instead of refitting",
+    )
+    p.set_defaults(func=cmd_run_acceptance)
+
     p = sub.add_parser("run-perg-sensitivity", help="Phase 8 PERG sensitivity ablations")
     p.add_argument("--data", default="configs/data/local.yaml")
     p.add_argument("--experiment", default="configs/experiments/perg_sensitivity_v1.yaml")
     p.set_defaults(func=cmd_run_perg_sensitivity)
+
+    p = sub.add_parser(
+        "confound-review",
+        help="pre-Phase-6 fallback/confounding shortcut review gate",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.set_defaults(func=cmd_run_confound_review)
+
+    p = sub.add_parser("external-coverage", help="gate 7 probe 1: coverage/diversity report")
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.set_defaults(func=cmd_run_external_coverage)
+
+    p = sub.add_parser(
+        "flinders-calibration", help="gate 7 probe 2: LEOP controls vs Flinders norm"
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.set_defaults(func=cmd_run_flinders_calibration)
+
+    p = sub.add_parser(
+        "urfu-sanity", help="gate 7 probe 3: URFU labels carry signal (held-out)"
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument("--gpu", action="store_true")
+    p.add_argument("--folds", type=int, default=5)
+    p.set_defaults(func=cmd_run_urfu_sanity)
+
+    p = sub.add_parser(
+        "leop-la3-transfer",
+        help="gate 7 probe 4: LEOP LA3 classification under Flinders external norm",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument("--folds", type=int, default=5)
+    p.set_defaults(func=cmd_run_leop_la3_transfer)
 
     return parser
 

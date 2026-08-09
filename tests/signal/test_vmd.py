@@ -36,7 +36,7 @@ def _signal(
 ) -> tuple[np.ndarray, np.ndarray]:
     t = np.arange(n) / fs
     x = np.zeros(n)
-    for fh, a in zip(tones, amps):
+    for fh, a in zip(tones, amps, strict=True):
         x += a * np.sin(2.0 * np.pi * fh * t + 0.3 * fh)
     if noise_sd > 0.0:
         rng = np.random.default_rng(7)

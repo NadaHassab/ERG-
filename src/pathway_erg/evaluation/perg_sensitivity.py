@@ -35,10 +35,10 @@ import zarr
 from ..config import BaselinesConfig, DataConfig
 from ..data.perg import parse_perg_acuity
 from ..evaluation.metrics import binary_metrics, cluster_bootstrap_ci
-from ..signal.component_cache import CACHE_SCHEMA_VERSION, cache_paths, load_cache_manifest
 from ..models.baselines import (
     INNER_FOLDS_TEMPLATE,
     OUTER_FOLDS_TEMPLATE,
+    FeatureSet,
     _load_units,
     _models_for,
     _progress,
@@ -47,9 +47,9 @@ from ..models.baselines import (
     e4_curve_features,
     e4_derot_features,
     e4_spectral_features,
-    FeatureSet,
     select_and_fit,
 )
+from ..signal.component_cache import CACHE_SCHEMA_VERSION, cache_paths, load_cache_manifest
 
 PERG = "PERG"
 FAMILY_LABELS = {
@@ -305,7 +305,7 @@ def run_perg_sensitivity(cfg: PergSensitivityConfig, data_cfg: DataConfig) -> di
         methods, acuity_df, cfg.acuity_as_feature,
     )
     full_meta, full_note = _run_units(cfg, units, inner, full_feats, methods, "baseline", out_dir)
-    results["_meta"] = {"baseline": full_note, "cohort": f"PERG", "n_total_subjects": int(units["subject_id"].nunique())}
+    results["_meta"] = {"baseline": full_note, "cohort": "PERG", "n_total_subjects": int(units["subject_id"].nunique())}
     results["baseline"] = full_meta
 
     if "age_strata" in cfg.ablations:

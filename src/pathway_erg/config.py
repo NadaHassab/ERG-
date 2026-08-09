@@ -12,7 +12,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from pathlib import Path
-from typing import Any, TypeVar, get_type_hints
+from typing import Any, TypeVar, get_args, get_origin, get_type_hints
 
 import yaml
 
@@ -63,14 +63,28 @@ def _from_dict(schema: type[T], data: dict[str, Any], where: str) -> T:
             continue
         value = data[f.name]
         field_type = hints.get(f.name)
-        origin = getattr(field_type, "__origin__", None)
-        if field_type is not None and is_dataclass(field_type):
+        origin = get_origin(field_type)
+        if field_type is None:
+            kwargs[f.name] = value
+            continue
+        union_args = get_args(field_type)
+        inner = None
+        if origin in (list, set, tuple) and union_args:
+            inner = get_origin(union_args[0]) or union_args[0]
+        elif is_dataclass(field_type):
+            inner = field_type
+        elif origin is not None and getattr(origin, "__name__", "") == "UnionType":
+            for a in union_args:
+                if a is type(None):
+                    continue
+                inner = a
+                break
+        if inner is not None and is_dataclass(inner):
             if not isinstance(value, dict):
                 raise ConfigError(f"{where}.{f.name}: expected mapping")
-            kwargs[f.name] = _from_dict(field_type, value, f"{where}.{f.name}")
-        elif origin in (list, set, tuple) and is_dataclass(field_type.__args__[0]):
-            elem = field_type.__args__[0]
-            kwargs[f.name] = [_from_dict(elem, v, f"{where}.{f.name}[]") for v in value]
+            kwargs[f.name] = _from_dict(inner, value, f"{where}.{f.name}")
+        elif origin in (list, set, tuple):
+            kwargs[f.name] = value
         else:
             kwargs[f.name] = value
     try:
@@ -120,10 +134,22 @@ class PergDataConfig:
 
 
 @dataclass(frozen=True)
+class FlindersDataConfig:
+    xlsx_path: str
+
+
+@dataclass(frozen=True)
+class UrfuDataConfig:
+    root: str
+
+
+@dataclass(frozen=True)
 class DataConfig:
     leops: LeopsDataConfig
     perg: PergDataConfig
     artifact_root: str = "artifacts"
+    flinders: FlindersDataConfig | None = None
+    urfu: UrfuDataConfig | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -364,3 +390,15 @@ class BaselinesConfig:
     pca_variance: float = BASELINE_PCA_VARIANCE
     max_pca_components: int = BASELINE_MAX_PCA_COMPONENTS
     seed: int = 777
+    # Label-permutation gate (v2 plan Phase 9): when set, target labels are
+    # permuted at subject level with this deterministic seed BEFORE any
+    # modeling (prevalence preserved, subject clustering preserved), and the
+    # seed is recorded in the run notes. Expected outcome: every method's
+    # AUROC lands at chance (~0.5) — proving no label/information leakage.
+    label_permutation_seed: int | None = None
+    # VMD comparator hyperparameters (plan Section 15.2 grid). Empty dict uses
+    # the calibrated defaults (K=5, alpha=2000, tol=1e-7, pad=25ms). When set,
+    # the matching VMD cache must exist (cache-vmd), and the exact key is
+    # recorded in the run manifest/notes so a grid point never silently reuses
+    # another configuration's features.
+    vmd: dict[str, float | int] | None = None
