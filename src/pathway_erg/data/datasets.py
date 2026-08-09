@@ -36,7 +36,11 @@ import pandas as pd
 import zarr
 
 from ..constants import OUTER_FOLDS_TEMPLATE
-from ..signal.component_cache import CACHE_SCHEMA_VERSION, cache_paths
+from ..signal.component_cache import (
+    CACHE_SCHEMA_VERSION,
+    cache_paths,
+    load_cache_manifest,
+)
 
 CANONICAL_SAMPLES = 128
 OT_DIM = 135  # 2x64 quantiles + 2 log masses + mass fraction + 2 variations + 2 flags
@@ -48,6 +52,8 @@ class ComponentRow:
 
     global_component_id: str
     global_recording_id: str
+    subject_id: str
+    visit_id: str
     dataset: str
     component_id: str
     unit_id: str
@@ -70,6 +76,8 @@ class BagUnit:
     """One unit (participant or visit) and all of its components."""
 
     unit_id: str
+    subject_id: str
+    visit_id: str | None
     dataset: str
     target_binary: int | None
     outer_fold: int
@@ -110,14 +118,23 @@ class LoadedCaches:
     to a locked outer fold.
     """
 
-    def __init__(self, artifact_root: str | Path = "artifacts"):
+    def __init__(
+        self,
+        artifact_root: str | Path = "artifacts",
+        fold_version: str = "v1",
+    ):
         self.root = Path(artifact_root)
+        self.fold_version = fold_version
         cache = cache_paths(self.root, CACHE_SCHEMA_VERSION)
+        self.cache_manifest = load_cache_manifest(self.root, CACHE_SCHEMA_VERSION)
         self.components = pd.read_parquet(cache["components_parquet"])
         self.recordings = pd.read_parquet(self.root / "data" / "interim" / "recordings.parquet")
         self.visits = pd.read_parquet(self.root / "data" / "interim" / "visits.parquet")
         self.folds = pd.read_parquet(
-            self.root / "data" / "splits" / OUTER_FOLDS_TEMPLATE.format(version="v1")
+            self.root
+            / "data"
+            / "splits"
+            / OUTER_FOLDS_TEMPLATE.format(version=fold_version)
         )
         curves = zarr.open_group(str(cache["curves_zarr"]), mode="r")["components"]
         self.signal = np.asarray(curves["canonical_signal"][:])
@@ -194,6 +211,8 @@ class LoadedCaches:
         return ComponentRow(
             global_component_id=r["global_component_id"],
             global_recording_id=r["global_recording_id"],
+            subject_id=str(r["global_subject_id"]),
+            visit_id=str(r["global_visit_id"]),
             dataset=r["dataset"],
             component_id=r["component_id"],
             unit_id=str(r["unit_id"]),
@@ -247,8 +266,12 @@ class ComponentDataset:
         return self._caches._row(self._tbl.iloc[idx])
 
 
-def build_bags(caches: LoadedCaches, dataset: str,
-               outer_folds: set[int] | None = None) -> list[BagUnit]:
+def build_bags(
+    caches: LoadedCaches,
+    dataset: str,
+    outer_folds: set[int] | None = None,
+    allowed_recording_ids: set[str] | None = None,
+) -> list[BagUnit]:
     """One :class:`BagUnit` per participant (LEOP) or visit (PERG).
 
     Bags appear in first-appearance order of the unit in the canonical
@@ -260,6 +283,8 @@ def build_bags(caches: LoadedCaches, dataset: str,
         raise ValueError(f"dataset must be LEOP or PERG, got {dataset!r}")
     tbl = caches.table()
     tbl = tbl[tbl["dataset"] == dataset]
+    if allowed_recording_ids is not None:
+        tbl = tbl[tbl["global_recording_id"].isin(allowed_recording_ids)]
     if outer_folds is not None:
         tbl = tbl[tbl["outer_fold"].isin(outer_folds)]
 
@@ -273,11 +298,19 @@ def build_bags(caches: LoadedCaches, dataset: str,
         folders = {row.outer_fold for row in rows}
         if len(folders) != 1:
             raise ValueError(f"unit {uid} spans folds {folders}")
+        subject_ids = {row.subject_id for row in rows}
+        visit_ids = {row.visit_id for row in rows}
+        if len(subject_ids) != 1:
+            raise ValueError(f"unit {uid} spans subjects {subject_ids}")
+        if dataset == "PERG" and len(visit_ids) != 1:
+            raise ValueError(f"PERG unit {uid} spans visits {visit_ids}")
         target = tbl.loc[tbl["unit_id"].astype(str) == uid, "target_binary"]
         target_v = int(target.iloc[0]) if len(target) and pd.notna(target.iloc[0]) else None
         out.append(
             BagUnit(
                 unit_id=uid,
+                subject_id=next(iter(subject_ids)),
+                visit_id=next(iter(visit_ids)) if dataset == "PERG" else None,
                 dataset=dataset,
                 target_binary=target_v,
                 outer_fold=next(iter(folders)),

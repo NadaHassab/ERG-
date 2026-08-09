@@ -115,8 +115,12 @@ def collate_bag_units(bags: list[BagUnit]) -> dict[str, np.ndarray]:
     labels = np.full(B, np.nan, dtype=np.float64)
     folds = np.zeros(B, dtype=np.int64)
     unit_ids: list[str] = []
+    subject_ids: list[str] = []
+    visit_ids: list[str | None] = []
     for i, bag in enumerate(bags):
         unit_ids.append(bag.unit_id)
+        subject_ids.append(bag.subject_id)
+        visit_ids.append(bag.visit_id)
         labels[i] = bag.target_binary if bag.target_binary is not None else np.nan
         folds[i] = int(bag.outer_fold)
         eye_code: dict[str, int] = {}
@@ -145,6 +149,8 @@ def collate_bag_units(bags: list[BagUnit]) -> dict[str, np.ndarray]:
         "group_intensity": group_intensity,
         "group_recording": group_recording,
         "unit_ids": np.asarray(unit_ids, dtype=object),
+        "subject_ids": np.asarray(subject_ids, dtype=object),
+        "visit_ids": np.asarray(visit_ids, dtype=object),
         "label": labels,
         "outer_fold": folds,
         "dataset": np.asarray([b.dataset for b in bags], dtype=object),

@@ -4,7 +4,7 @@
 **Working paper:** *Pathway-Constrained Partial Transfer Across Unpaired Retinal Electrophysiology Protocols*
 **Master plan:** `MASTER_PLAN_PATHWAY_AWARE_SIGNED_OT.md` (authoritative blueprint — 10 phases, 36 sections)
 **Changelog:** `CHANGELOG.md` (release history)
-**Last updated:** 2026-08-08
+**Last updated:** 2026-08-09
 
 > This file is a plain-language log of what is done, what was changed and why,
 > and what the findings mean. When an error appears, read the "Watch list" and
@@ -39,8 +39,8 @@ as independent people.
 | 2 | Identities, labels, schema, nested folds | **DONE** |
 | 3 | Preprocessing, landmarks, components, QC | **DONE (pending review of findings below)** |
 | 4 | Signed OT + synthetic simulations (E1, E2) | **DONE** |
-| 5 | Simple classical baselines (E0/E4) + VMD | **PARTIAL** — classical baselines done; VMD comparator done on both LEOP cohorts (plan §15, §3.26) |
-| 6 | Separate hierarchical neural models | NOT STARTED |
+| 5 | Simple classical baselines (E0/E4) + VMD | **DONE** (2026-08-09, §3.26 grid/K-sweep + §3.31 shortcut review; gate: OOF predictions exist, VMD frequency/stability tests pass, shortcut risks reviewed) |
+| 6 | Separate hierarchical neural models | **IMPLEMENTED; authoritative 5-fold × 3-seed run pending** (§3.30–§3.36) |
 | 7 | Joint SSL + pathway routing | NOT STARTED |
 | 8 | Graph controls + label efficiency | NOT STARTED |
 | 9 | Robustness, statistics, interpretation | NOT STARTED |
@@ -800,6 +800,63 @@ availability feature, (c) no fallback mask / missingness channel in the
 signal.  The review is advisory (it documents measured values), and
 re-runnable via `pathway_erg.cli confound-review`.
 
+### 3.31 Phase 5 close — VMD grid, K-sweep and shortcut review (2026-08-09)
+
+Closes the Phase 5 gate (plan Section 15): OOF predictions exist on both
+LEOP cohorts, the VMD frequency/stability tests pass (§3.26), and the two
+remaining plan-15.5 items are now done — the hyperparameter grid (plan
+15.2) and the site/device shortcut review.
+
+**VMD hyperparameter grid (`signal/vmd_grid.py` + `vmd-grid` CLI):** all 64
+plan-15.2 points (K∈{3,4,5,6} × alpha∈{500,1000,2000,4000} × tol∈{1e-6,1e-7}
+× pad∈{25,50} ms) swept over a deterministic 500-recording subsample of the
+modeling population (1056 components, 67584 rows, 0 skips; first attempt
+had 192 skips from unfiltered new-URFU rows — the sampler now restricts to
+the component-cache population).  Findings:
+
+- **Convergence:** all 64 points converge on every component (converged
+  fraction 1.0).
+- **pad=25 ms is correct:** median rel. recon error 0.052 (K=5) vs 0.338 at
+  pad=50 ms — the extra 25 ms of mirrored padding beyond the support absorbs
+  the transient, so the plan's 25 ms default is not only safe but necessary.
+- **K plateau:** median recon 0.089 (K=3) → 0.065 (K=4) → 0.052 (K=5) →
+  0.044 (K=6); monotone, smooth, no cliff, and the effective mode count
+  saturates (n_modes>1% energy: 2.84/3.54/4.07/4.37).
+- **alpha/tol are flat:** recon varies only ~2x across the full alpha range
+  and is identical to 4 decimals across tol — the defaults (K=5, alpha=2000,
+  tol=1e-7, pad=25) sit on a stable plateau, exactly what the plan requires.
+
+**Model-level K sweep (GPU cuML, VMD-only configs, primary nine-step):**
+to keep the comparison backend-consistent all four K values were re-run on
+GPU (`e4_vmd_k_sweep_K{3,4,5,6}_gpu_p9`, `baselines_vmd_k_sweep_K*_gpu_p9`),
+omitting the K-invariant methods (their results come from the locked
+reference run §3.26).  AUROC (svm_rbf): K=3 0.6752, K=4 0.6517,
+K=5 0.6768, K=6 0.6701.  Paired cluster bootstrap on the identical 160
+units (2000 reps + 2000 sign-flips): every difference vs K=5 includes 0
+and p ≥ 0.11 for all three model families — **no K effect**; the
+prespecified K=5 default is retained.  (GPU K=5 = 0.6768 reproduces the
+locked CPU reference 0.677 to 3 decimals — cuML/sklearn agree.)
+
+**VMD site/device shortcut review (`vmd_shortcut_check`, artifacts in
+`artifacts/results/confounds/vmd_shortcut_check.{json,md}`):** leave-one-
+site-out on the best VMD model (svm_rbf, K=5, 80 features, GPU cuML) over
+the two LEOP sites (1: 87 units, 2: 73): site1→site2 AUROC 0.592
+(sex-adj. 0.628), site2→site1 0.666 (sex-adj. 0.651).  No collapse, no
+saturation — the VMD features transfer across acquisition sites at the same
+biology-level band as slot_no_counts (0.660/0.598) and derot (0.631/0.624)
+in §3.20; VMD is not a site/device shortcut.
+
+**Verdict: Phase 5 DONE** — VMD is a legitimate adaptive-spectral
+comparator + candidate model (§3.26); the grid certifies the default
+config, the K sweep finds no sensitivity, and the shortcut review is clean.
+
+**Note (pre-existing drift):** `evaluation/confound_audit.py` still imports
+the removed `_fit_transform_features` from the pre-pipeline baselines API
+and cannot be imported; its results on disk (confound_audit.{json,md}) are
+from the 2026-08-08 run and remain valid, but the module needs a
+port-to-`build_pipeline` before the next re-run.  The VMD shortcut check is
+a standalone script (independent of that module).
+
 ### 3.30 Phase 6 increment 1 — GD data layer (2026-08-08)
 
 Plan Module 21.12 done.  New `data/datasets.py` (`LoadedCaches`,
@@ -944,6 +1001,49 @@ interfaces).
   CI sanity, exact ID pairing + mismatch rejection, calibrator
   overconfidence correction + degenerate rejection + apply shape.
 - Full suite 333 + 11 = 344 passed; ruff clean.
+
+### 3.36 Phase 6 — leakage-safe separate-training runner (plan item 18, 2026-08-09)
+
+`training/separate.py` + CLI `run-separate-neural` +
+`configs/experiments/e6_separate_raw_ot_hierarchical_v1.yaml`.
+
+- Corrected a critical scaffolding leak: `Trainer.fit` no longer infers a
+  partition from `outer_fold` (which previously optimized the selected outer
+  test fold). It now requires explicit train/validation bag lists, rejects
+  subject overlap, uses fixed validation membership, and caps every epoch to
+  one finite sampler pass by default.
+- Bags now carry canonical `subject_id` + `visit_id`; PERG repeated visits stay
+  grouped by subject in outer/inner partitions and bootstrap clusters. The
+  collator emits these IDs with every batch.
+- LEOP primary cohort is applied *before* bag construction: only labeled
+  Control/ASD participants with nine-step components remain (160 people,
+  14,911 components). PERG retains 336 labeled visit bags from 304 canonical
+  subjects.
+- Nested runner per task/fold/seed: four fresh inner models -> exactly one OOF
+  prediction per outer-train bag -> inner-OOF temperature calibration -> fresh
+  outer-train refit -> one calibrated outer-test prediction per unit.
+- Runtime checkpoints: each inner fold writes `inner_fold_<j>.pt` and
+  `inner_oof_fold_<j>.parquet`; final stage writes `final.pt`, predictions,
+  calibrator, run manifest, then `COMPLETE` last. Interrupted runs cannot look
+  complete.
+- Artifact prediction schema is baseline-compatible (`method`, `task`,
+  `outer_fold`, `unit_id`, `subject_id`, `visit_id`, `target`, probabilities)
+  plus seed/logit/calibrated probability/checkpoint. Three seeds are averaged
+  to one ensemble row per unit, never treated as independent observations.
+- Fixed temperature-calibration gradient sign and pinned it against a finite
+  difference; evaluation now rejects non-probabilities and duplicate unit IDs;
+  paired comparisons require exact unit IDs when clusters repeat.
+- Real PERG outer-0 / inner-0 smoke: 208 train visits (183 subjects), 66 fixed
+  validation visits (61 subjects), 62 untouched outer-test visits; one FP32
+  optimizer step completed with finite loss/AUROC.
+- Tests `tests/training/test_separate.py` (9) + one new evaluation validator:
+  cohort counts/protocol lock, nested coverage, subject-disjointness, one-step
+  training, exact prediction cardinality, calibration gradient, and staged
+  checkpoint/`COMPLETE` contract.
+- The authoritative 5 outer folds × 3 seeds × 2 tasks run is intentionally not
+  launched on the CPU-only torch build; the implementation/checkpoint contract
+  is ready for that run.
+- Full verification: 354 tests passed in 5:22; ruff clean.
 
 ## 4. Key findings so far (numbers to remember)
 

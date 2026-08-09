@@ -1,0 +1,22 @@
+# Plan §35 item 18: independent from-scratch neural baselines.
+# No shared initialization, joint SSL, or cross-domain batches.
+name: e6_separate_raw_ot_hierarchical_v1
+method: separate_raw_ot_hierarchical_v1
+fold_version: v1
+tasks: [LEOP, PERG]
+leop_cohort: primary_nine_step
+outer_folds: [0, 1, 2, 3, 4]
+seeds: [1001, 2002, 3003]
+epochs: 200
+batch_size: 8
+lr: 0.0001
+weight_decay: 0.0001
+warmup_epochs: 5
+patience: 25
+grad_clip: 1.0
+device: cpu
+max_steps_per_epoch: null
+output_subdir: separate_raw_ot_hierarchical_v1
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95

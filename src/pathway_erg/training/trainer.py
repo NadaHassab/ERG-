@@ -22,9 +22,9 @@ import numpy as np
 import torch
 
 from ..data.collate import collate_bag_units
-from ..data.datasets import LoadedCaches, build_bags
+from ..data.datasets import BagUnit
 from ..evaluation.metrics import roc_auc_score
-from .losses import FoldWeightedBCE
+from .losses import FoldWeightedBCE, positive_class_weight
 from .samplers import BagSampler
 
 
@@ -33,7 +33,7 @@ class TrainConfig:
     """Hyperparameters for a supervised run (plan §14.11)."""
 
     task: str
-    outer_fold: int
+    outer_fold: int | None = None
     epochs: int = 200
     batch_size: int = 16
     lr: float = 1e-4
@@ -56,10 +56,12 @@ class TrainLog:
     val_auc: list[float] = field(default_factory=list)
     grad_norm: list[float] = field(default_factory=list)
     gate_mean: list[float] = field(default_factory=list)
+    best_epoch: int | None = None
+    best_val_auc: float | None = None
 
 
 class Trainer:
-    """Train one :class:`PathModel` on one task within one outer fold."""
+    """Train one task on explicit train/validation bag partitions."""
 
     def __init__(self, model: torch.nn.Module, config: TrainConfig):
         self.model = model
@@ -69,29 +71,45 @@ class Trainer:
 
     def fit(
         self,
-        caches: LoadedCaches,
+        train_bags: list[BagUnit],
+        val_bags: list[BagUnit] | None = None,
         out_dir: Path | None = None,
     ) -> TrainLog:
         cfg = self.config
-        bags = build_bags(caches, cfg.task, outer_folds={cfg.outer_fold})
-        train_folds = {cfg.outer_fold}
-        # (outer fold == inner here: the trainer trains on one fold and
-        # validates on the same fold's bag-level labels without leaking
-        # other folds — true inner-CV trains on 4 folds; implemented in
-        # the evaluation stage per plan §14.8)
-        sampler = BagSampler(bags, folds=train_folds, batch_size=cfg.batch_size, seed=cfg.seed)
-        labels = np.array([b.target_binary for b in sampler.bags])
-        pos_w = float(
-            (labels == 0).sum() / ((labels == 1).sum() + 1e-6)
-        ) if (labels == 1).sum() else 1.0
+        if not train_bags:
+            raise ValueError("train_bags must not be empty")
+        if any(b.dataset != cfg.task for b in train_bags):
+            raise ValueError(f"train_bags contain a dataset other than {cfg.task}")
+        val_bags = list(val_bags or [])
+        overlap = {b.subject_id for b in train_bags} & {
+            b.subject_id for b in val_bags
+        }
+        if overlap:
+            raise ValueError(
+                f"train/validation subject leakage: {sorted(overlap)[:5]}"
+            )
+        sampler = BagSampler(
+            train_bags,
+            folds={b.outer_fold for b in train_bags},
+            batch_size=cfg.batch_size,
+            seed=cfg.seed,
+        )
+        labels = np.asarray(
+            [np.nan if b.target_binary is None else b.target_binary for b in sampler.bags],
+            dtype=float,
+        )
+        pos_w = positive_class_weight(labels)
         criterion = FoldWeightedBCE(pos_w)
         optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay
         )
 
         # warmup + cosine schedule (plan §14.11)
-        total = cfg.epochs * max(1, len(sampler.bags) // cfg.batch_size)
-        warm = cfg.warmup_epochs * max(1, len(sampler.bags) // cfg.batch_size)
+        steps_per_epoch = cfg.max_steps_per_epoch or int(
+            np.ceil(len(sampler.bags) / cfg.batch_size)
+        )
+        total = cfg.epochs * steps_per_epoch
+        warm = cfg.warmup_epochs * steps_per_epoch
         sched = _WarmupCosine(optimizer, warmup_steps=warm, total_steps=total, min_frac=0.05)
 
         self.model.to(self.device)
@@ -100,33 +118,48 @@ class Trainer:
         patience = 0
 
         for epoch in range(cfg.epochs):
-            train_loss, grads, gates = self._run_epoch(sampler, criterion, optimizer, sched, labels, caches)
+            train_loss, grads, gates = self._run_epoch(
+                sampler, criterion, optimizer, sched, steps_per_epoch
+            )
             self.log.train_loss.append(float(train_loss))
             self.log.grad_norm.append(float(grads))
             self.log.gate_mean.append(float(gates))
 
-            train_auc = self._bag_auc(caches, bags, epoch, train=True)
-            val_auc = self._bag_auc(caches, bags, epoch, train=False)
+            train_auc = self._bag_auc(sampler.bags)
+            val_auc = self._bag_auc(val_bags) if val_bags else train_auc
             self.log.train_auc.append(train_auc)
             self.log.val_auc.append(val_auc)
 
+            if not val_bags:
+                self.log.best_epoch = epoch
+                self.log.best_val_auc = None
+                continue
             if val_auc > best_auc:
                 best_auc = val_auc
                 best_state = {
                     k: v.detach().clone() for k, v in self.model.state_dict().items()
                 }
+                self.log.best_epoch = epoch
+                self.log.best_val_auc = val_auc
                 patience = 0
             else:
                 patience += 1
             if patience >= cfg.patience:
                 break
 
-        if best_state is not None:
+        if val_bags and best_state is not None:
             self.model.load_state_dict(best_state)
         return self.log
 
     # -- internals ----------------------------------------------------------
-    def _run_epoch(self, sampler, criterion, optimizer, sched, labels, caches) -> tuple[float, float, float]:
+    def _run_epoch(
+        self,
+        sampler,
+        criterion,
+        optimizer,
+        sched,
+        steps_per_epoch: int,
+    ) -> tuple[float, float, float]:
         cfg = self.config
         self.model.train()
         total_loss = 0.0
@@ -134,14 +167,14 @@ class Trainer:
         grad_norms: list[float] = []
         gates: list[float] = []
         for step, idx in enumerate(sampler):
-            if cfg.max_steps_per_epoch is not None and step >= cfg.max_steps_per_epoch:
+            if step >= steps_per_epoch:
                 break
             bags = [sampler.bags[i] for i in idx]
             batch = collate_bag_units(bags)
             labels_b = torch.as_tensor(batch["label"], dtype=torch.float32).to(self.device)
             if torch.isnan(labels_b).all():
                 continue
-            logits = self.model(batch, cfg.task).to(self.device)
+            logits = self.model(batch, cfg.task)
             loss = criterion(logits, labels_b)
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -163,17 +196,12 @@ class Trainer:
                     gates.append(float(enc.alpha.mean().item()))
         return total_loss / max(1, n), float(np.mean(grad_norms) if grad_norms else 0.0), float(np.mean(gates) if gates else 0.0)
 
-    def _bag_auc(self, caches, bags, epoch, train: bool) -> float:
-        """Bag-level AUROC on this fold (train/val split of units)."""
+    def _bag_auc(self, bags: list[BagUnit]) -> float:
+        """Bag-level AUROC on a fixed grouped partition."""
         cfg = self.config
         self.model.eval()
         y_true, y_prob = [], []
-        rng = np.random.default_rng(cfg.seed + epoch)
-        idx = rng.permutation(len(bags))
-        split = max(1, int(len(idx) * 0.8))
-        sel = idx[:split] if train else idx[split:]
-        for i in sel:
-            bag = bags[i]
+        for bag in bags:
             if bag.target_binary is None:
                 continue
             batch = collate_bag_units([bag])

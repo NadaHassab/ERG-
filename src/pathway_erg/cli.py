@@ -380,6 +380,23 @@ def cmd_run_leop_la3_transfer(args) -> int:
     return 0
 
 
+def cmd_run_separate_neural(args) -> int:
+    from .training.separate import SeparateTrainingConfig, run_separate_training
+
+    data_cfg = load_config(DataConfig, args.data)
+    cfg = load_config(SeparateTrainingConfig, args.experiment)
+    result = run_separate_training(cfg, data_cfg)
+    for task, metrics in sorted(result.metrics.items()):
+        print(
+            f"{task:<5} AUROC={metrics['roc_auc']:.4f} "
+            f"[{metrics['roc_auc_ci_low']:.4f}, {metrics['roc_auc_ci_high']:.4f}] "
+            f"n={metrics['n_total']} clusters={metrics['n_clusters']}"
+        )
+    out = Path(data_cfg.artifact_root) / "results" / cfg.output_subdir
+    print(f"predictions: {out / 'predictions.parquet'}")
+    return 0
+
+
 def _pywt_note() -> str:
     import pywt
 
@@ -515,6 +532,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data", default="configs/data/local.yaml")
     p.add_argument("--folds", type=int, default=5)
     p.set_defaults(func=cmd_run_leop_la3_transfer)
+
+    p = sub.add_parser(
+        "run-separate-neural",
+        help="item 18: fold-safe separate LEOP/PERG neural baselines",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument(
+        "--experiment",
+        default="configs/experiments/e6_separate_raw_ot_hierarchical_v1.yaml",
+    )
+    p.set_defaults(func=cmd_run_separate_neural)
 
     return parser
 

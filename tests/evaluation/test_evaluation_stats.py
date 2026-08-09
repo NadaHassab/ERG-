@@ -67,6 +67,22 @@ def test_evaluate_predictions_degenerate_class():
         evaluate_predictions(t)
 
 
+def test_evaluate_predictions_rejects_invalid_probability_and_duplicate_unit():
+    bad = pd.DataFrame(
+        {
+            "unit_id": ["u1", "u2"],
+            "cluster": ["a", "b"],
+            "y_true": [0, 1],
+            "y_prob": [0.1, 1.2],
+        }
+    )
+    with pytest.raises(ValueError, match="probabilities"):
+        evaluate_predictions(bad)
+    duplicate = bad.assign(unit_id=["u1", "u1"], y_prob=[0.1, 0.9])
+    with pytest.raises(ValueError, match="duplicate"):
+        evaluate_predictions(duplicate)
+
+
 def test_cluster_bootstrap_ci_plausible():
     t = make_table(n_clusters=40, repeat=5, seed=3)
     r = cluster_bootstrap(t, n_reps=300, seed=1)
@@ -99,15 +115,14 @@ def test_paired_compare_rejects_different_clusters():
     a = make_table(n_clusters=10, repeat=1, seed=1)
     b = make_table(n_clusters=10, repeat=1, seed=2)
     b["cluster"] = [f"x{i}" for i in range(10)]  # entirely different ids
-    with pytest.raises(ValueError, match="cluster sets differ"):
+    with pytest.raises(ValueError, match="unit sets differ"):
         paired_compare(a, b)
 
 
-def test_calibrator_identity_on_perfect():
+def test_calibrator_sharpens_perfect_logits():
     c = fit_calibrator(np.array([-5.0, -5.0, 5.0, 5.0]), np.array([0, 0, 1, 1]))
-    # perfect logits need no temperature change
-    assert 0.5 <= c.temperature <= 2.0
-    assert c.apply(np.array([5.0]))[0] > 0.9
+    assert 0.0 < c.temperature < 1.0
+    assert c.apply(np.array([5.0]))[0] > 0.99
 
 
 def test_calibrator_corrects_overconfidence():

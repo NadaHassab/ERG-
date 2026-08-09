@@ -221,6 +221,10 @@ def _validate_prediction_table(
     y_prob = prediction_table["y_prob"].astype(float).to_numpy()
     if len(y_true) != len(y_prob):
         raise ValueError("y_true / y_prob length mismatch")
+    if not np.all(np.isfinite(y_prob)) or ((y_prob < 0) | (y_prob > 1)).any():
+        raise ValueError("y_prob must contain finite probabilities in [0, 1]")
+    if "unit_id" in prediction_table and prediction_table["unit_id"].duplicated().any():
+        raise ValueError("prediction_table has duplicate supervised unit_id rows")
     return y_true, y_prob
 
 

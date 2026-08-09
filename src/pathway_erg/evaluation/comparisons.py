@@ -54,10 +54,19 @@ def _paired_frame(pred_a: pd.DataFrame, pred_b: pd.DataFrame, cluster_col: str):
             f"unmatched unit counts: A={len(pred_a)} B={len(pred_b)} — "
             "paired comparison needs the exact same units"
         )
-    ids_a = pred_a[cluster_col].to_numpy()
-    ids_b = pred_b[cluster_col].to_numpy()
+    pair_col = "unit_id" if "unit_id" in pred_a and "unit_id" in pred_b else cluster_col
+    if pair_col == cluster_col and pred_a[cluster_col].duplicated().any():
+        raise ValueError(
+            "repeated clusters require an explicit unit_id column for exact pairing"
+        )
+    ids_a = pred_a[pair_col].to_numpy()
+    ids_b = pred_b[pair_col].to_numpy()
     if not np.array_equal(ids_a, ids_b):
-        raise ValueError("cluster sets differ between A and B")
+        raise ValueError("unit sets differ between A and B")
+    if not np.array_equal(
+        pred_a[cluster_col].to_numpy(), pred_b[cluster_col].to_numpy()
+    ):
+        raise ValueError("cluster assignments differ between A and B")
     return pred_a, pred_b
 
 

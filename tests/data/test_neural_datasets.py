@@ -65,6 +65,8 @@ def test_component_row_fields(caches):
     assert row.physical.shape == (len(PHYSICAL_FEATURE_NAMES),)
     assert row.dataset == "LEOP"
     assert row.unit_id
+    assert row.subject_id == row.unit_id
+    assert row.visit_id
 
 
 def test_bag_counts_match_locked_cohort(caches, table):
@@ -124,6 +126,8 @@ def test_collate_bag_padding(caches):
     assert b["ot"].shape == (5, L, OT_DIM)
     assert b["component_mask"].sum(axis=1).tolist() == [len(x.components) for x in bags]
     assert b["label"].shape == (5,)
+    assert b["subject_ids"].shape == (5,)
+    assert b["visit_ids"].shape == (5,)
     # padded rows must be NaN -> model must mask them before pooling
     padded = ~b["component_mask"]
     assert not padded.any() or bool(np.isnan(b["physical"][padded]).all())

@@ -84,4 +84,4 @@ def _ce_gradient(t: float, logits: np.ndarray, labels: np.ndarray) -> float:
     z = logits / t
     p = 1.0 / (1.0 + np.exp(-z))
     # d/dT of mean[logaddexp(0, z) - z*y] wrt T
-    return float(np.mean((p - labels) * logits / (t * t)))
+    return float(np.mean((p - labels) * -logits / (t * t)))

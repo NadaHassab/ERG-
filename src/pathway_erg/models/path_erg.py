@@ -164,11 +164,22 @@ class PathModel(nn.Module):
     # -- plan 21.16 interface -----------------------------------------------
     def encode_component(self, batch: dict) -> ComponentEncoding:
         """sources: raw (B,L,1,128) + valid (B,L,128) + ot (B,L,135) + phys (B,L,8)."""
-        signal = torch.as_tensor(batch["signal"], dtype=torch.float32)   # (B,L,1,128)
-        vmask = torch.as_tensor(batch["valid_mask"], dtype=torch.bool)   # (B,L,128)
-        ot = torch.as_tensor(batch["ot"], dtype=torch.float32)           # (B,L,135)
-        physical = torch.as_tensor(batch["physical"], dtype=torch.float32)  # (B,L,8)
-        comp_mask = torch.as_tensor(batch["component_mask"], dtype=torch.bool)  # (B,L)
+        device = next(self.parameters()).device
+        signal = torch.as_tensor(
+            batch["signal"], dtype=torch.float32, device=device
+        )  # (B,L,1,128)
+        vmask = torch.as_tensor(
+            batch["valid_mask"], dtype=torch.bool, device=device
+        )  # (B,L,128)
+        ot = torch.as_tensor(
+            batch["ot"], dtype=torch.float32, device=device
+        )  # (B,L,135)
+        physical = torch.as_tensor(
+            batch["physical"], dtype=torch.float32, device=device
+        )  # (B,L,8)
+        comp_mask = torch.as_tensor(
+            batch["component_mask"], dtype=torch.bool, device=device
+        )  # (B,L)
         B, L, _, T = signal.shape
 
         flat_sig = signal.reshape(B * L, 1, T)
@@ -194,8 +205,12 @@ class PathModel(nn.Module):
         """Hierarchy pooling to one participant/visit token per bag."""
         enc = self.encode_component(batch)
         token, comp_valid = enc.token, enc.valid
-        g_eye = torch.as_tensor(batch["group_eye"], dtype=torch.int64)
-        g_intensity = torch.as_tensor(batch["group_intensity"], dtype=torch.int64)
+        g_eye = torch.as_tensor(
+            batch["group_eye"], dtype=torch.int64, device=token.device
+        )
+        g_intensity = torch.as_tensor(
+            batch["group_intensity"], dtype=torch.int64, device=token.device
+        )
         attn: dict[str, torch.Tensor] = {}
 
         if task == "LEOP":
