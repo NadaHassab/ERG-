@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics import (
     average_precision_score,
     balanced_accuracy_score,
@@ -187,3 +188,106 @@ def _metric_value(metric: str, y_true: np.ndarray, y_prob: np.ndarray) -> float:
         y_pred = (y_prob >= 0.5).astype(int)
         return float(balanced_accuracy_score(y_true, y_pred))
     raise ValueError(f"unsupported bootstrap metric {metric!r}")
+
+
+# ---------------------------------------------------------------------------
+# Prediction-table level reports (plan Module 21.18, §18.1/18.3/18.8)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MetricReport:
+    """Full point-metric report at the supervised-unit level (plan §18.1)."""
+
+    n_units: int
+    n_clusters: int
+    n_positive: int
+    metrics: dict[str, float]
+    endpoint: str
+
+    def __getitem__(self, key: str) -> float:
+        return self.metrics[key]
+
+
+def _validate_prediction_table(
+    prediction_table: pd.DataFrame,
+    endpoint: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    if "y_true" not in prediction_table.columns or "y_prob" not in prediction_table.columns:
+        raise ValueError("prediction_table needs y_true and y_prob columns")
+    if "cluster" not in prediction_table.columns:
+        raise ValueError("prediction_table needs a cluster column (plan §18.3)")
+    y_true = prediction_table["y_true"].astype(float).to_numpy()
+    y_prob = prediction_table["y_prob"].astype(float).to_numpy()
+    if len(y_true) != len(y_prob):
+        raise ValueError("y_true / y_prob length mismatch")
+    return y_true, y_prob
+
+
+def evaluate_predictions(
+    prediction_table: pd.DataFrame,
+    endpoint: str = "roc_auc",
+    threshold: float = 0.5,
+) -> MetricReport:
+    """All point metrics at unit level (plan §18.1) with sample-size honesty.
+
+    ``prediction_table`` columns: ``y_true`` (0/1), ``y_prob`` (calibrated
+    probability or logit), ``cluster`` (participant id for LEOP, canonical
+    subject for PERG).  Raises on single-class input (no silent dummy).
+    """
+    y_true, y_prob = _validate_prediction_table(prediction_table, endpoint)
+    m = binary_metrics(y_true, y_prob, threshold=threshold)
+    n_clusters = int(prediction_table["cluster"].nunique())
+    return MetricReport(
+        n_units=len(y_true),
+        n_clusters=n_clusters,
+        n_positive=int((y_true == 1).sum()),
+        metrics=m,
+        endpoint=endpoint,
+    )
+
+
+@dataclass(frozen=True)
+class BootstrapReport:
+    """Cluster-bootstrap CIs for a prediction table (plan §18.3)."""
+
+    metric: str
+    point: float
+    mean: float
+    ci_low: float
+    ci_high: float
+    n_replicates_used: int
+    n_replicates_skipped: int
+    n_clusters: int
+
+
+def cluster_bootstrap(
+    prediction_table: pd.DataFrame,
+    cluster_col: str = "cluster",
+    metric: str = "roc_auc",
+    seed: int = BOOTSTRAP_SEED,
+    n_reps: int = DEFAULT_N_BOOTSTRAP_REPS,
+    confidence: float = DEFAULT_CONFIDENCE,
+) -> BootstrapReport:
+    """Stratified cluster bootstrap on a prediction table (plan §18.3)."""
+    y_true, y_prob = _validate_prediction_table(prediction_table, metric)
+    clusters = prediction_table[cluster_col].to_numpy()
+    r = cluster_bootstrap_ci(
+        y_true, y_prob, clusters, metric=metric,
+        n_reps=n_reps, seed=seed, confidence=confidence,
+    )
+    return BootstrapReport(
+        metric=metric,
+        point=_metric_value(metric, y_true, y_prob),
+        mean=r.mean, ci_low=r.ci_low, ci_high=r.ci_high,
+        n_replicates_used=r.n_replicates_used,
+        n_replicates_skipped=r.n_replicates_skipped,
+        n_clusters=r.n_clusters,
+    )
+
+
+def _validate_both_classes(y: np.ndarray) -> None:
+    if len(set(np.unique(y))) != 2 or not {0, 1}.issubset(set(np.unique(y))):
+        raise ValueError(
+            f"both classes 0 and 1 required; got {sorted(set(np.unique(y)))}"
+        )
