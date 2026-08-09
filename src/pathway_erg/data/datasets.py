@@ -61,6 +61,7 @@ class ComponentRow:
     eye: str | None
     stimulus_value: float
     stimulus_unit: str
+    landmark_confidence: float
     outer_fold: int
     signal: np.ndarray        # canonical 128-point signal (float64)
     signal_mask: np.ndarray   # valid-sample mask (bool)
@@ -220,6 +221,7 @@ class LoadedCaches:
             eye=str(r["eye"]) if pd.notna(r.get("eye")) else None,
             stimulus_value=float(r["stimulus_value"]) if pd.notna(r["stimulus_value"]) else np.nan,
             stimulus_unit=str(r.get("stimulus_unit", "")),
+            landmark_confidence=float(r.get("landmark_confidence", 1.0)),
             outer_fold=int(r["outer_fold"]),
             signal=self.signal[i],
             signal_mask=self.mask[i],

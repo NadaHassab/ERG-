@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -32,6 +33,7 @@ from .aggregators import (
 )
 from .local_fusion import FUSED_DIM, LocalFusion
 from .ot_stem import OTStem
+from .pathway_router import PathwayGraph, PathwayRouter, make_pathway_graph
 from .raw_stem import RawStem
 
 TOKEN_DIM = FUSED_DIM
@@ -45,6 +47,8 @@ class ModelConfig:
     agg_seed: int | None = 0
     head_seed: int | None = 0
     dropout: float = 0.1
+    routing_graph: str | None = None
+    random_graph_seed: int = 0
 
 
 @dataclass
@@ -54,6 +58,9 @@ class ComponentEncoding:
     token: torch.Tensor      # (B, L, TOKEN_DIM) fused local z
     alpha: torch.Tensor      # (B, L) raw/OT fusion gate
     valid: torch.Tensor      # (B, L) bool — components present (not padded)
+    shared: torch.Tensor | None = None       # (B, L, 64)
+    private: torch.Tensor | None = None      # (B, L, 64)
+    pathway_gate: torch.Tensor | None = None  # (B, L)
 
 
 @dataclass
@@ -143,12 +150,19 @@ def promote_group_codes(
 class PathModel(nn.Module):
     """Composed model: stems -> fusion -> gated hierarchy -> per-task head."""
 
-    def __init__(self, config: ModelConfig):
+    def __init__(
+        self, config: ModelConfig, pathway_graph: PathwayGraph | None = None
+    ):
         super().__init__()
         self.config = config
         self.raw_stem = RawStem(seed=config.stems_seed)
         self.ot_stem = OTStem(seed=config.stems_seed)
         self.fusion = LocalFusion(fused_dim=TOKEN_DIM, seed=config.stems_seed)
+        self.router = (
+            PathwayRouter(pathway_graph, local_dim=TOKEN_DIM, dropout=config.dropout)
+            if pathway_graph is not None
+            else None
+        )
 
         self.comp_to_eye = ComponentToEyeAggregator(TOKEN_DIM, seed=config.agg_seed)
         self.intensity_to_eye = IntensityToEyeAggregator(TOKEN_DIM, seed=config.agg_seed)
@@ -193,13 +207,53 @@ class PathModel(nn.Module):
         zo = self.ot_stem(flat_ot)                     # (BL, 64)
         fused, alpha = self.fusion(zr, zo, flat_phys)  # (BL, D)
 
+        shared = private = pathway_gate = None
+        if self.router is not None:
+            flat_present = comp_mask.reshape(-1)
+            idx = flat_present.nonzero(as_tuple=False).flatten()
+            routed_token = torch.zeros_like(fused)
+            shared_flat = torch.zeros(
+                B * L, 64, dtype=fused.dtype, device=fused.device
+            )
+            private_flat = torch.zeros_like(shared_flat)
+            gate_flat = torch.zeros(B * L, dtype=fused.dtype, device=fused.device)
+            if idx.numel():
+                component_type = np.asarray(batch["component_type"], dtype=object).reshape(-1)
+                dataset = np.repeat(np.asarray(batch["dataset"], dtype=object), L)
+                confidence = torch.as_tensor(
+                    batch["component_confidence"],
+                    dtype=torch.float32,
+                    device=fused.device,
+                ).reshape(-1)
+                routed = self.router(
+                    fused[idx],
+                    component_type[idx.detach().cpu().numpy()],
+                    dataset[idx.detach().cpu().numpy()],
+                    confidence[idx],
+                )
+                routed_token[idx] = routed.combined
+                shared_flat[idx] = routed.shared
+                private_flat[idx] = routed.private
+                gate_flat[idx] = routed.gate
+            fused = routed_token
+            shared = shared_flat.reshape(B, L, -1)
+            private = private_flat.reshape(B, L, -1)
+            pathway_gate = gate_flat.reshape(B, L)
+
         token = fused.reshape(B, L, -1)
         alpha = alpha.reshape(B, L)
         # padded rows may carry NaN physical — zero token alpha so padded
         # rows never pollute pooling (attention for those rows is 0 anyway)
         token = torch.where(comp_mask.unsqueeze(-1), token, torch.zeros_like(token))
         alpha = torch.where(comp_mask, alpha, torch.zeros_like(alpha))
-        return ComponentEncoding(token=token, alpha=alpha, valid=comp_mask)
+        return ComponentEncoding(
+            token=token,
+            alpha=alpha,
+            valid=comp_mask,
+            shared=shared,
+            private=private,
+            pathway_gate=pathway_gate,
+        )
 
     def encode_bag(self, batch: dict, task: str) -> BagEncoding:
         """Hierarchy pooling to one participant/visit token per bag."""
@@ -256,10 +310,22 @@ class PathModel(nn.Module):
         return list(self.state_dict().keys())
 
 
-def build_model(config: ModelConfig | None = None, pathway_graph: dict | None = None) -> PathModel:
+def build_model(
+    config: ModelConfig | None = None,
+    pathway_graph: PathwayGraph | str | dict | None = None,
+) -> PathModel:
     """Factory (plan 21.16).  ``pathway_graph`` is reserved for the future
     shared-expert graph replacement (Module 21.18) and stored on the
     model for forward references."""
-    m = PathModel(config or ModelConfig())
-    m.pathway_graph = pathway_graph
+    cfg = config or ModelConfig()
+    graph_spec = pathway_graph if pathway_graph is not None else cfg.routing_graph
+    graph: PathwayGraph | None
+    if isinstance(graph_spec, PathwayGraph):
+        graph = graph_spec
+    elif isinstance(graph_spec, str):
+        graph = make_pathway_graph(graph_spec, seed=cfg.random_graph_seed)
+    else:
+        graph = None
+    m = PathModel(cfg, graph)
+    m.pathway_graph = graph if graph is not None else graph_spec
     return m

@@ -112,6 +112,8 @@ def collate_bag_units(bags: list[BagUnit]) -> dict[str, np.ndarray]:
     group_eye = np.full((B, L), -1, dtype=np.int64)
     group_intensity = np.full((B, L), -1, dtype=np.int64)
     group_recording = np.full((B, L), -1, dtype=np.int64)
+    component_type = np.full((B, L), "", dtype=object)
+    component_confidence = np.zeros((B, L), dtype=np.float32)
     labels = np.full(B, np.nan, dtype=np.float64)
     folds = np.zeros(B, dtype=np.int64)
     unit_ids: list[str] = []
@@ -132,6 +134,8 @@ def collate_bag_units(bags: list[BagUnit]) -> dict[str, np.ndarray]:
             valid[i, j] = comp.signal_mask
             ot[i, j] = comp.ot_vector.astype(np.float32)
             physical[i, j] = comp.physical.astype(np.float32)
+            component_type[i, j] = comp.component_id
+            component_confidence[i, j] = float(comp.landmark_confidence)
             eye = comp.eye or "?"
             group_eye[i, j] = eye_code.setdefault(eye, len(eye_code))
             key_inten = (eye, comp.stimulus_value)
@@ -148,6 +152,8 @@ def collate_bag_units(bags: list[BagUnit]) -> dict[str, np.ndarray]:
         "group_eye": group_eye,
         "group_intensity": group_intensity,
         "group_recording": group_recording,
+        "component_type": component_type,
+        "component_confidence": component_confidence,
         "unit_ids": np.asarray(unit_ids, dtype=object),
         "subject_ids": np.asarray(subject_ids, dtype=object),
         "visit_ids": np.asarray(visit_ids, dtype=object),

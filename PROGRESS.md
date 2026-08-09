@@ -1045,6 +1045,41 @@ interfaces).
   is ready for that run.
 - Full verification: 354 tests passed in 5:22; ruff clean.
 
+### 3.37 Phase 6 — pathway router and experts (plan Module 21.14, 2026-08-09)
+
+`models/adapters.py`, `models/experts.py`, `models/pathway_router.py` + CLI
+config `routing_graph` on `ModelConfig`.
+
+- `ProtocolAdapter` (residual `local -> 64 -> 64`) with `FlashLateAdapter` /
+  `PERGLateAdapter`; `ResidualExpert` (residual `in -> 96 -> 64`, LayerNorm,
+  GELU, dropout 0.1) with the five private experts and `SharedInnerLateExpert`
+  (plan §9.6–9.7; our local token is 128 so adapters are 128→64→64 in place
+  of the plan's reference 96→64→64).
+- `PathwayRouter.forward(local_token, component_id, dataset_id, confidence)`
+  -> `RoutedToken(shared, private, combined, gate, shared_mask)`. Private
+  route is always present (component-by-expert mask). The shared route exists
+  only for graph-allowed components, so forbidden edges have no gradient path
+  through the shared adapter/expert. Graph controls (`correct`/`none`/`full`/
+  `wrong`/`random`) change only the mask — parameter counts are identical.
+- Gate: `sigmoid(W[private, shared, conf]) * conf`; zero confidence forces a
+  pure-private token (low-confidence behavior, plan test list). `confidence`
+  is the cached per-component `landmark_confidence` (0.95 confident, 0.0
+  fallback/landmark-miss).
+- `build_model(config, pathway_graph)` accepts a `PathwayGraph`, a graph
+  control name, or the legacy hierarchy dict (stored verbatim, no router).
+  `PathModel.encode_component` returns `shared`/`private`/`pathway_gate`
+  (None without a router); padded rows never route.
+- Data layer: `ComponentRow.landmark_confidence`; collator emits
+  `component_type` (B,L) and `component_confidence` (B,L) alongside the
+  existing hierarchy codes.
+- Tests `tests/models/test_pathway_router.py` (13): forbidden-edge zero
+  gradients (eval mode, none-graph control comparison), correct/wrong/random
+  masks, parameter-count matching across controls, private route always
+  present, low-confidence behavior, unknown component rejection, PathModel
+  integration, and real-data forward/backward smokes for LEOP fold-0 and PERG
+  fold-1 routed models (finite gradients through the shared expert).
+- Full verification: 354 + 13 = 367 tests; ruff clean.
+
 ## 4. Key findings so far (numbers to remember)
 
 ### 4.1 Transport math behaves correctly (E1)
