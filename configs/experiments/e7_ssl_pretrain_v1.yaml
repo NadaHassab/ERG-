@@ -1,0 +1,27 @@
+# Plan §35 item 19: joint label-free SSL pretraining (Stage B, plan §14.2).
+# One outer fold is always excluded (SSL held-out exclusion, plan §23.6);
+# the matching fold's supervised runs initialize from this checkpoint.
+name: e7_ssl_pretrain_v1
+fold_version: v1
+routing_graph: correct
+outer_folds: [0, 1, 2, 3, 4]
+exclude_fold: null
+leop_batch: 64
+perg_batch: 64
+epochs: 5
+lr: 0.0001
+weight_decay: 0.05
+warmup_epochs: 1
+grad_clip: 1.0
+seed: 1001
+device: cpu
+mask_len: 24
+ssl_dim: 64
+lambda_mask: 1.0
+lambda_view: 0.25
+lambda_aug: 0.25
+lambda_geom: 0.10
+lambda_prior: 0.01
+gate_prior: 0.75
+output_subdir: ssl_pretrain_v1
+log_every: 10

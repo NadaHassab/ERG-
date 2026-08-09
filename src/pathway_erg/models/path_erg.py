@@ -58,9 +58,12 @@ class ComponentEncoding:
     token: torch.Tensor      # (B, L, TOKEN_DIM) fused local z
     alpha: torch.Tensor      # (B, L) raw/OT fusion gate
     valid: torch.Tensor      # (B, L) bool — components present (not padded)
+    raw_token: torch.Tensor | None = None   # (B, L, 64) raw stem embedding
+    ot_token: torch.Tensor | None = None    # (B, L, 64) OT stem embedding
     shared: torch.Tensor | None = None       # (B, L, 64)
     private: torch.Tensor | None = None      # (B, L, 64)
-    pathway_gate: torch.Tensor | None = None  # (B, L)
+    pathway_gate: torch.Tensor | None = None  # (B, L) confidence-scaled gate
+    pathway_gate_strength: torch.Tensor | None = None  # (B, L) g of §4.5
 
 
 @dataclass
@@ -207,7 +210,7 @@ class PathModel(nn.Module):
         zo = self.ot_stem(flat_ot)                     # (BL, 64)
         fused, alpha = self.fusion(zr, zo, flat_phys)  # (BL, D)
 
-        shared = private = pathway_gate = None
+        shared = private = pathway_gate = pathway_gate_strength = None
         if self.router is not None:
             flat_present = comp_mask.reshape(-1)
             idx = flat_present.nonzero(as_tuple=False).flatten()
@@ -217,6 +220,7 @@ class PathModel(nn.Module):
             )
             private_flat = torch.zeros_like(shared_flat)
             gate_flat = torch.zeros(B * L, dtype=fused.dtype, device=fused.device)
+            gate_strength_flat = torch.zeros_like(gate_flat)
             if idx.numel():
                 component_type = np.asarray(batch["component_type"], dtype=object).reshape(-1)
                 dataset = np.repeat(np.asarray(batch["dataset"], dtype=object), L)
@@ -235,24 +239,37 @@ class PathModel(nn.Module):
                 shared_flat[idx] = routed.shared
                 private_flat[idx] = routed.private
                 gate_flat[idx] = routed.gate
+                gate_strength_flat[idx] = routed.gate_strength
             fused = routed_token
             shared = shared_flat.reshape(B, L, -1)
             private = private_flat.reshape(B, L, -1)
             pathway_gate = gate_flat.reshape(B, L)
+            pathway_gate_strength = gate_strength_flat.reshape(B, L)
 
         token = fused.reshape(B, L, -1)
         alpha = alpha.reshape(B, L)
+        raw_token = zr.reshape(B, L, -1)
+        ot_token = zo.reshape(B, L, -1)
         # padded rows may carry NaN physical — zero token alpha so padded
         # rows never pollute pooling (attention for those rows is 0 anyway)
         token = torch.where(comp_mask.unsqueeze(-1), token, torch.zeros_like(token))
         alpha = torch.where(comp_mask, alpha, torch.zeros_like(alpha))
+        raw_token = torch.where(
+            comp_mask.unsqueeze(-1), raw_token, torch.zeros_like(raw_token)
+        )
+        ot_token = torch.where(
+            comp_mask.unsqueeze(-1), ot_token, torch.zeros_like(ot_token)
+        )
         return ComponentEncoding(
             token=token,
             alpha=alpha,
             valid=comp_mask,
+            raw_token=raw_token,
+            ot_token=ot_token,
             shared=shared,
             private=private,
             pathway_gate=pathway_gate,
+            pathway_gate_strength=pathway_gate_strength,
         )
 
     def encode_bag(self, batch: dict, task: str) -> BagEncoding:

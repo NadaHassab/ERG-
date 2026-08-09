@@ -70,7 +70,8 @@ class RoutedToken:
     shared: torch.Tensor       # (N, 64)
     private: torch.Tensor      # (N, 64)
     combined: torch.Tensor     # (N, local_dim)
-    gate: torch.Tensor         # (N,)
+    gate: torch.Tensor         # (N,) confidence-scaled gate
+    gate_strength: torch.Tensor  # (N,) raw sigmoid before confidence (g in §4.5)
     shared_mask: torch.Tensor  # (N,) bool
 
 
@@ -136,6 +137,7 @@ class PathwayRouter(nn.Module):
         allowed = torch.as_tensor(allowed_np, dtype=torch.bool, device=device)
         shared = torch.zeros_like(private)
         gate = torch.zeros(n, device=device, dtype=dtype)
+        gate_strength = torch.zeros(n, device=device, dtype=dtype)
         idx = allowed.nonzero(as_tuple=False).flatten()
         if idx.numel():
             ds_allowed = datasets[allowed_np]
@@ -154,7 +156,9 @@ class PathwayRouter(nn.Module):
             gate_input = torch.cat(
                 [private[idx], shared_allowed, conf.unsqueeze(-1)], dim=-1
             )
-            gate[idx] = torch.sigmoid(self.gate_net(gate_input)).squeeze(-1) * conf
+            strength = torch.sigmoid(self.gate_net(gate_input)).squeeze(-1)
+            gate_strength[idx] = strength
+            gate[idx] = strength * conf
 
         combined = self.combine(
             torch.cat([private, gate.unsqueeze(-1) * shared], dim=-1)
@@ -164,6 +168,7 @@ class PathwayRouter(nn.Module):
             private=private,
             combined=combined,
             gate=gate,
+            gate_strength=gate_strength,
             shared_mask=allowed,
         )
 

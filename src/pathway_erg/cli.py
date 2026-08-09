@@ -380,6 +380,23 @@ def cmd_run_leop_la3_transfer(args) -> int:
     return 0
 
 
+def cmd_run_ssl_pretrain(args) -> int:
+    import dataclasses
+
+    from .training.ssl import SSLConfig, pretrain_ssl
+
+    data_cfg = load_config(DataConfig, args.data)
+    cfg = load_config(SSLConfig, args.experiment)
+    if args.exclude_fold is not None:
+        cfg = dataclasses.replace(cfg, exclude_fold=args.exclude_fold)
+    ckpt_path, log = pretrain_ssl(cfg, data_cfg)
+    print(f"SSL checkpoint: {ckpt_path}")
+    print(f"train folds: {sorted(set(cfg.outer_folds) - {cfg.exclude_fold})}")
+    if log.train_loss:
+        print(f"final epoch total loss: {log.train_loss[-1]:.4f}")
+    return 0
+
+
 def cmd_run_separate_neural(args) -> int:
     from .training.separate import SeparateTrainingConfig, run_separate_training
 
@@ -543,6 +560,23 @@ def build_parser() -> argparse.ArgumentParser:
         default="configs/experiments/e6_separate_raw_ot_hierarchical_v1.yaml",
     )
     p.set_defaults(func=cmd_run_separate_neural)
+
+    p = sub.add_parser(
+        "run-ssl-pretrain",
+        help="item 19: joint SSL pretraining with one held-out fold (plan §14)",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument(
+        "--experiment",
+        default="configs/experiments/e7_ssl_pretrain_v1.yaml",
+    )
+    p.add_argument(
+        "--exclude-fold",
+        type=int,
+        required=True,
+        help="outer fold excluded from SSL and its supervised fine-tuning",
+    )
+    p.set_defaults(func=cmd_run_ssl_pretrain)
 
     return parser
 

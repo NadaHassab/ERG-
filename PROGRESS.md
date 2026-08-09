@@ -1080,6 +1080,47 @@ config `routing_graph` on `ModelConfig`.
   fold-1 routed models (finite gradients through the shared expert).
 - Full verification: 354 + 13 = 367 tests; ruff clean.
 
+### 3.38 Phase 7 — joint SSL pretraining (plan item 19 / §14, Module 21.17 ssl.py+finetune.py, 2026-08-09)
+
+`training/ssl.py` (Stage B reference objective), `training/finetune.py`,
+CLI `run-ssl-pretrain` + `configs/experiments/e7_ssl_pretrain_v1.yaml`,
+and `--init-ssl` on `run-separate-neural`.
+
+- Reference objective §14.2 implemented with development weights:
+  mask 1.0 (contiguous-span raw reconstruction, Huber only on masked+valid,
+  §14.3), raw↔OT VICReg 0.25 (invariance+variance+covariance heads §14.4),
+  augmentation VICReg 0.25 (safe scale/shift/noise pairs §14.5), geometry
+  0.10 (within-dataset/component-type Huber on z-scored embedding vs sOT
+  distance pairs, §14.6), gate prior 0.01 ((g−0.75)² on permitted edges,
+  §4.5). Projection/decoder heads live in `JointSSLLoss` and are discarded
+  after pretraining.
+- Router now also exposes `gate_strength` (raw sigmoid before confidence
+  scaling) so the prior targets the learned strength g; `ComponentEncoding`
+  additionally carries `raw_token`/`ot_token` for the view/aug losses.
+- Equal-domain gradient contribution: one domain-balanced LEOP + PERG batch
+  per optimizer step with equal-weight loss sum; empty trailing domain
+  slices are skipped (plan 14.2).
+- Leakage: `pretrain_ssl` requires `exclude_fold` (SSL held-out exclusion,
+  plan §23.6/§26.7) and trains only on the remaining folds; staged contract
+  identical to item 18 (`final.pt` written via tmp+rename, `COMPLETE` last,
+  `run_manifest.json` with config/data/split hashes + git revision).
+- Stage C wiring: `finetune.init_from_ssl` copies only shared encoder keys
+  into a fresh model (SSL heads never carried over, §14.4), errors on
+  missing core keys; `freeze_encoders` keeps encoder frozen during
+  fine-tuning; `SeparateTrainingConfig.init_ssl` points a supervised run at
+  the matching fold's checkpoint (predictions note records the init).
+- `ComponentDataset`/`domain_balanced_batch_indices` already existed and
+  were reused unchanged; `collate_component_batch` maps flat component
+  rows onto the encode_component bag-batch keys (L=1).
+- Tests `tests/training/test_ssl.py` (11): masking/augmentation helpers,
+  masked-loss algebra (only masked+valid positions), VICReg variance/
+  covariance terms on known tensors, gate-prior formula, geometry pairs,
+  real-batch joint loss, held-out-fold exclusion, checkpoint/COMPLETE
+  contract, SSL-init encoder copy + freeze.
+- Full verification: 367 + 11 = 378 tests; ruff clean. Authoritative
+  per-fold SSL runs + SSL-init supervised runs remain pending on the
+  GPU-enabled torch build.
+
 ## 4. Key findings so far (numbers to remember)
 
 ### 4.1 Transport math behaves correctly (E1)

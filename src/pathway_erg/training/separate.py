@@ -67,6 +67,7 @@ class SeparateTrainingConfig:
     n_bootstrap_reps: int = 2000
     bootstrap_seed: int = 424242
     confidence: float = 0.95
+    init_ssl: str | None = None
 
 
 @dataclass
@@ -186,6 +187,19 @@ def predict_bags(
     return out
 
 
+def build_stage_model(
+    cfg: SeparateTrainingConfig, seed: int
+) -> torch.nn.Module:
+    """Fresh model, optionally initialized from a joint SSL checkpoint."""
+    from .finetune import freeze_encoders, init_from_ssl
+
+    model = build_model(ModelConfig(stems_seed=seed, agg_seed=seed, head_seed=seed))
+    if cfg.init_ssl:
+        init_from_ssl(model, cfg.init_ssl)
+        freeze_encoders(model, freeze=True)
+    return model
+
+
 def run_outer_seed(
     cfg: SeparateTrainingConfig,
     data_cfg: DataConfig,
@@ -216,7 +230,7 @@ def run_outer_seed(
         train_bags, valid_bags = inner_partition(
             outer_train, inner_map, inner_fold
         )
-        model = build_model(ModelConfig(stems_seed=seed, agg_seed=seed, head_seed=seed))
+        model = build_stage_model(cfg, seed)
         trainer = Trainer(
             model,
             _train_config(cfg, task, outer_fold, seed),
@@ -258,9 +272,7 @@ def run_outer_seed(
     )
 
     selected_epochs = max(1, int(round(float(np.median(best_epochs)))))
-    final_model = build_model(
-        ModelConfig(stems_seed=seed, agg_seed=seed, head_seed=seed)
-    )
+    final_model = build_stage_model(cfg, seed)
     final_cfg = _train_config(cfg, task, outer_fold, seed)
     final_cfg.epochs = selected_epochs
     final_cfg.patience = selected_epochs + 1
@@ -273,7 +285,11 @@ def run_outer_seed(
     pred["outer_fold"] = outer_fold
     pred["seed"] = seed
     pred["checkpoint"] = str(run_dir / "final.pt")
-    pred["note"] = "fresh single-task model; no shared pretraining"
+    pred["note"] = (
+        "fresh single-task model; no shared pretraining"
+        if not cfg.init_ssl
+        else f"init from joint SSL {cfg.init_ssl}"
+    )
     pred.to_parquet(run_dir / "predictions.parquet", index=False)
     _write_checkpoint(
         run_dir / "final.pt",
