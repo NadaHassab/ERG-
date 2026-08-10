@@ -68,6 +68,7 @@ class SeparateTrainingConfig:
     bootstrap_seed: int = 424242
     confidence: float = 0.95
     init_ssl: str | None = None
+    routing_graph: str | None = None
 
 
 @dataclass
@@ -190,10 +191,17 @@ def predict_bags(
 def build_stage_model(
     cfg: SeparateTrainingConfig, seed: int
 ) -> torch.nn.Module:
-    """Fresh model, optionally initialized from a joint SSL checkpoint."""
+    """Fresh model, optionally routed and initialized from joint SSL."""
     from .finetune import freeze_encoders, init_from_ssl
 
-    model = build_model(ModelConfig(stems_seed=seed, agg_seed=seed, head_seed=seed))
+    model = build_model(
+        ModelConfig(
+            stems_seed=seed,
+            agg_seed=seed,
+            head_seed=seed,
+            routing_graph=cfg.routing_graph,
+        )
+    )
     if cfg.init_ssl:
         init_from_ssl(model, cfg.init_ssl)
         freeze_encoders(model, freeze=True)
@@ -290,6 +298,8 @@ def run_outer_seed(
         if not cfg.init_ssl
         else f"init from joint SSL {cfg.init_ssl}"
     )
+    if cfg.routing_graph:
+        pred["note"] += f"; routing graph={cfg.routing_graph}"
     pred.to_parquet(run_dir / "predictions.parquet", index=False)
     _write_checkpoint(
         run_dir / "final.pt",

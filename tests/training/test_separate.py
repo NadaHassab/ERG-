@@ -15,6 +15,7 @@ from pathway_erg.evaluation.calibration import _binary_cross_entropy, _ce_gradie
 from pathway_erg.models.path_erg import build_model
 from pathway_erg.training.separate import (
     SeparateTrainingConfig,
+    build_stage_model,
     build_task_bags,
     inner_partition,
     load_inner_map,
@@ -35,6 +36,24 @@ def test_primary_leop_bags_are_nine_step_only(caches):
     assert len(bags) == 160
     assert all(b.target_binary in {0, 1} for b in bags)
     assert {c.protocol for b in bags for c in b.components} == {"9_step"}
+
+
+def test_build_stage_model_respects_routing_graph():
+    plain = build_stage_model(SeparateTrainingConfig(name="t"), seed=7)
+    assert plain.router is None
+    routed = build_stage_model(
+        SeparateTrainingConfig(name="t", routing_graph="correct"), seed=7
+    )
+    assert routed.router is not None
+    assert routed.router.graph.name == "correct"
+    wrong = build_stage_model(
+        SeparateTrainingConfig(name="t", routing_graph="wrong"), seed=7
+    )
+    counts = lambda m: sum(p.numel() for p in m.parameters())
+    assert counts(plain) < counts(routed)  # router adds parameters
+    assert counts(routed) == counts(wrong)  # controls share parameter counts
+    with pytest.raises(ValueError):
+        build_stage_model(SeparateTrainingConfig(name="t", routing_graph="bogus"), seed=7)
 
 
 def test_perg_bags_preserve_subject_and_visit_ids(caches):

@@ -1121,6 +1121,23 @@ and `--init-ssl` on `run-separate-neural`.
   per-fold SSL runs + SSL-init supervised runs remain pending on the
   GPU-enabled torch build.
 
+### 3.39 Phase 8 — graph-aware separate runner (plan item 20 prep, 2026-08-09)
+
+- `SeparateTrainingConfig.routing_graph` passes the graph control
+  (`correct`/`none`/`full`/`wrong`/`random`) into every inner/final model;
+  `build_stage_model` composes routing + optional SSL init. Controls keep
+  identical parameter counts (Module 21.14), predictions carry
+  `routing graph=<name>` in their note, and the run manifest/config hash
+  distinguishes experiments.
+- `configs/experiments/e8_pathway_graph_correct_v1.yaml` is the primary
+  pathway graph; wrong/random/full/none controls are the same file with
+  `routing_graph` swapped and a distinct `name`/`method`/`output_subdir`.
+- Tests: `build_stage_model` honor the graph, unknown graphs raise, router
+  parameters exist only when routed, parameter counts match across
+  controls.
+- Full verification: 378 + 1 = 379 tests; ruff clean. Control runs remain
+  pending on the GPU-enabled torch build.
+
 ## 4. Key findings so far (numbers to remember)
 
 ### 4.1 Transport math behaves correctly (E1)
