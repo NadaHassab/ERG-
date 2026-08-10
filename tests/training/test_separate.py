@@ -22,6 +22,7 @@ from pathway_erg.training.separate import (
     outer_partition,
     predict_bags,
     run_outer_seed,
+    stratified_subset,
 )
 from pathway_erg.training.trainer import TrainConfig, Trainer, TrainLog
 
@@ -49,7 +50,8 @@ def test_build_stage_model_respects_routing_graph():
     wrong = build_stage_model(
         SeparateTrainingConfig(name="t", routing_graph="wrong"), seed=7
     )
-    counts = lambda m: sum(p.numel() for p in m.parameters())
+    def counts(m):
+        return sum(p.numel() for p in m.parameters())
     assert counts(plain) < counts(routed)  # router adds parameters
     assert counts(routed) == counts(wrong)  # controls share parameter counts
     with pytest.raises(ValueError):
@@ -126,6 +128,40 @@ def test_predict_bags_is_one_row_per_unit(caches):
     assert len(pred) == 4
 
 
+def test_stratified_subset_is_identity_at_full(caches):
+    bags = build_task_bags(caches, "PERG")
+    same = stratified_subset(bags, 1.0, 42)
+    assert [b.unit_id for b in same] == [b.unit_id for b in bags]
+
+
+def test_stratified_subset_keeps_whole_subjects_and_both_classes(caches):
+    bags = build_task_bags(caches, "PERG")
+    out = stratified_subset(bags, 0.25, 7)
+    assert 0 < len(out) < len(bags)
+    assert {b.target_binary for b in out} == {0, 1}
+    chosen_subjects = {b.subject_id for b in out}
+    assert chosen_subjects < {b.subject_id for b in bags}
+    for bag in bags:
+        if bag.subject_id in chosen_subjects:
+            assert bag in out
+
+
+def test_stratified_subset_is_deterministic_and_seed_dependent(caches):
+    bags = build_task_bags(caches, "LEOP")
+    a = sorted(b.unit_id for b in stratified_subset(bags, 0.5, 11))
+    b = sorted(b.unit_id for b in stratified_subset(bags, 0.5, 11))
+    c = sorted(b.unit_id for b in stratified_subset(bags, 0.5, 12))
+    assert a == b
+    assert a != c
+
+
+def test_stratified_subset_rejects_bad_fraction(caches):
+    bags = build_task_bags(caches, "LEOP")[:8]
+    for fraction in (0.0, -1.0, 1.5):
+        with pytest.raises(ValueError):
+            stratified_subset(bags, fraction, 1)
+
+
 def test_temperature_gradient_matches_finite_difference():
     logits = np.array([-2.0, -0.5, 1.0, 3.0])
     labels = np.array([0.0, 1.0, 0.0, 1.0])
@@ -193,3 +229,4 @@ def test_outer_seed_writes_staged_checkpoints(caches, tmp_path, monkeypatch):
     assert len(list(run_dir.glob("inner_fold_*.pt"))) == 4
     assert pred["unit_id"].is_unique
     assert len(pred) == sum(b.outer_fold == 0 for b in bags)
+    assert pred["label_frac"].eq(1.0).all()

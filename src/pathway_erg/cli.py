@@ -414,6 +414,41 @@ def cmd_run_separate_neural(args) -> int:
     return 0
 
 
+def cmd_run_probes(args) -> int:
+    from .data.datasets import LoadedCaches
+    from .evaluation.probes import (
+        load_model_from_checkpoint,
+        run_probe_battery,
+        save_probe_report,
+    )
+
+    data_cfg = load_config(DataConfig, args.data)
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+    caches = LoadedCaches(data_cfg.artifact_root, fold_version=cfg.fold_version)
+    results = run_probe_battery(
+        model,
+        caches,
+        test_fold=args.fold,
+        n_reps=args.n_reps,
+        seed=args.seed,
+        device=cfg.device,
+    )
+    out_dir = (
+        Path(data_cfg.artifact_root) / "results" / cfg.output_subdir / "probes"
+    )
+    out = save_probe_report(
+        results, out_dir / f"probe_battery_fold{args.fold}.parquet"
+    )
+    for r in results:
+        ci = f"[{r.ci_low:.3f}, {r.ci_high:.3f}]" if r.ci_low is not None else "[—]"
+        print(
+            f"{r.frame:<4} {r.stream:<7} {r.target:<18} "
+            f"{r.metric}={r.value:.3f} {ci} (n={r.n_eval})"
+        )
+    print(f"report: {out}")
+    return 0
+
+
 def _pywt_note() -> str:
     import pywt
 
@@ -577,6 +612,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="outer fold excluded from SSL and its supervised fine-tuning",
     )
     p.set_defaults(func=cmd_run_ssl_pretrain)
+
+    p = sub.add_parser(
+        "run-probes",
+        help="item 22 (E12): linear probes on frozen embeddings of one checkpoint",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument(
+        "--checkpoint",
+        required=True,
+        help="path to final.pt (eval fold must be the fold it never saw)",
+    )
+    p.add_argument(
+        "--fold",
+        type=int,
+        required=True,
+        help="outer fold excluded from the model; probes evaluate on it",
+    )
+    p.add_argument("--n-reps", type=int, default=100)
+    p.add_argument("--seed", type=int, default=7)
+    p.set_defaults(func=cmd_run_probes)
 
     return parser
 

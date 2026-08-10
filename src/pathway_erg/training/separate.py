@@ -69,6 +69,8 @@ class SeparateTrainingConfig:
     confidence: float = 0.95
     init_ssl: str | None = None
     routing_graph: str | None = None
+    label_frac: float = 1.0
+    subset_seed: int = 9001
 
 
 @dataclass
@@ -101,6 +103,42 @@ def build_task_bags(
             raise ValueError(f"unknown LEOP cohort {leop_cohort!r}")
     bags = build_bags(caches, task, allowed_recording_ids=allowed)
     return [b for b in bags if b.target_binary is not None]
+
+
+def stratified_subset(
+    bags: list[BagUnit], fraction: float, seed: int
+) -> list[BagUnit]:
+    """Grouped stratified subset of training units (plan E9).
+
+    Samples whole subjects so every PERG visit of a chosen subject stays
+    together and the frozen inner partition remains nested.  Strata are
+    class-balanced: each target class is sampled at ``fraction`` of its
+    subjects.  ``fraction == 1.0`` returns the input unchanged and draws
+    no randomness.  Deterministic for a fixed seed.
+    """
+    if not 0.0 < fraction <= 1.0:
+        raise ValueError(f"label fraction must be in (0, 1], got {fraction!r}")
+    if fraction == 1.0:
+        return list(bags)
+    subjects: dict[str, list[BagUnit]] = {}
+    for bag in bags:
+        subjects.setdefault(bag.subject_id, []).append(bag)
+    labels: dict[str, int] = {}
+    for sid, unit_bags in subjects.items():
+        values = {b.target_binary for b in unit_bags}
+        if len(values) != 1:
+            raise ValueError(f"subject {sid!r} has inconsistent targets {values}")
+        labels[sid] = values.pop()
+    rng = np.random.default_rng(seed)
+    chosen: list[str] = []
+    for label in sorted(set(labels.values())):
+        pool = sorted(s for s, v in labels.items() if v == label)
+        n = max(1, int(round(fraction * len(pool))))
+        chosen.extend(rng.choice(pool, size=n, replace=False).tolist())
+    out = [b for b in bags if b.subject_id in set(chosen)]
+    if not out:
+        raise ValueError("empty stratified subset")
+    return out
 
 
 def outer_partition(
@@ -219,6 +257,10 @@ def run_outer_seed(
 ) -> tuple[pd.DataFrame, Path]:
     """Run one task/outer-fold/seed and write staged checkpoints."""
     outer_train, outer_test = outer_partition(bags, outer_fold)
+    if cfg.label_frac < 1.0:
+        outer_train = stratified_subset(
+            outer_train, cfg.label_frac, cfg.subset_seed
+        )
     inner_map = load_inner_map(
         data_cfg.artifact_root, cfg.fold_version, task, outer_fold
     )
@@ -290,6 +332,7 @@ def run_outer_seed(
     pred["method"] = cfg.method
     pred["task"] = task
     pred["cohort"] = cfg.leop_cohort if task == "LEOP" else "all_visits"
+    pred["label_frac"] = cfg.label_frac
     pred["outer_fold"] = outer_fold
     pred["seed"] = seed
     pred["checkpoint"] = str(run_dir / "final.pt")
@@ -300,6 +343,8 @@ def run_outer_seed(
     )
     if cfg.routing_graph:
         pred["note"] += f"; routing graph={cfg.routing_graph}"
+    if cfg.label_frac < 1.0:
+        pred["note"] += f"; label_frac={cfg.label_frac}"
     pred.to_parquet(run_dir / "predictions.parquet", index=False)
     _write_checkpoint(
         run_dir / "final.pt",
@@ -422,12 +467,16 @@ def _write_run_manifest(
         "outer_fold": outer_fold,
         "seed": seed,
         "checkpoint": "final.pt",
+        "label_frac": cfg.label_frac,
     }
     manifest.write_atomic(run_dir / "run_manifest.json")
 
 
 def _ensemble_predictions(by_seed: pd.DataFrame) -> pd.DataFrame:
-    keys = ["method", "task", "cohort", "outer_fold", "unit_id", "subject_id", "visit_id", "target"]
+    keys = [
+        "method", "task", "cohort", "label_frac", "outer_fold",
+        "unit_id", "subject_id", "visit_id", "target",
+    ]
     grouped = by_seed.groupby(keys, dropna=False, as_index=False)
     out = grouped.agg(
         logit=("logit", "mean"),

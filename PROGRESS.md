@@ -1138,6 +1138,57 @@ and `--init-ssl` on `run-separate-neural`.
 - Full verification: 378 + 1 = 379 tests; ruff clean. Control runs remain
   pending on the GPU-enabled torch build.
 
+### 3.40 Phase 8 — label-efficiency support (plan item 21 / E9, 2026-08-10)
+
+- `stratified_subset(bags, fraction, seed)` in `training/separate.py`
+  samples whole subjects (every PERG visit of a chosen subject stays
+  together, keeping the frozen inner partition nested), one class stratum
+  at a time at `fraction`, deterministically (`np.random.default_rng(seed)`);
+  `fraction == 1.0` is the identity and draws no randomness; subjects with
+  inconsistent targets raise.
+- `SeparateTrainingConfig.label_frac` (default 1.0) + `subset_seed`
+  (default 9001) are applied to the outer-train partition only — outer
+  tests are unchanged, per E9. Predictions carry a `label_frac` column and
+  a note suffix; the run manifest records it; the seed ensemble keeps the
+  column.
+- Tests `tests/training/test_separate.py` now 14: identity at full,
+  whole-subject + both-class preservation, determinism/seed-dependence,
+  bad-fraction rejection, and the staged-checkpoint run asserts the
+  `label_frac` column.
+- Full verification: 379 + 4 + additional suites = 250 collected in
+  training/evaluation/models, all green; ruff clean. Label-efficiency
+  runs (10/25/50/100%, fixed subset seeds) remain pending on the
+  GPU-enabled torch build like the item 20 controls.
+
+### 3.41 Phase 8 — expert-fidelity probes (plan item 22 / E12, 2026-08-10)
+
+- New `evaluation/probes.py`: `ProbeFrame`/`ProbeResult`,
+  `encode_component_frame` runs the frozen model's `encode_component` over
+  `collate_component_batch` chunks (streams: `fused` 128-d always;
+  `shared`/`private` 64-d only for routed checkpoints),
+  `probe_targets` (component_identity, dataset_identity, flash_intensity,
+  log1p peak_to_peak, log1p duration; NaN = not applicable).
+- `evaluate_probe`: linear OVR logistic (C=1e-3, max_iter 2000) with
+  per-class macro OVR AUROC (binary → roc_auc on the positive column) or
+  ridge regression with Pearson r; metric CIs from a unit-level cluster
+  bootstrap (2.5–97.5 percentile, reps default 100).
+- `run_probe_battery(model, caches, test_fold, ...)`: fits probes on the
+  checkpoint's training folds and evaluates on the single held-out fold
+  the model never saw; class targets are restricted to classes present in
+  the probe fit; frames `all`/`LEOP`/`PERG` × streams; rejects test folds
+  outside the locked fold tuple.
+- `load_model_from_checkpoint` rebuilds the identical staged model from
+  `final.pt` (`experiment.routing_graph` + seed); `save_probe_report`
+  writes parquet + JSON summary; CLI `run-probes --checkpoint --fold
+  --n-reps --seed`.
+- Tests `tests/evaluation/test_probes.py` (10): targets, stream shapes
+  (plain + routed), binary/multiclass/regression probe behavior, battery
+  fold-safety, checkpoint roundtrip, report files.
+- Full verification: 250 collected in training/evaluation/models all green
+  (14 separate + 11 ssl + 10 probes + models); full suite rerun in
+  progress; ruff clean. Battery launches on authoritative checkpoints
+  remain pending on the GPU-enabled torch build.
+
 ## 4. Key findings so far (numbers to remember)
 
 ### 4.1 Transport math behaves correctly (E1)
