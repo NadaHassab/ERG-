@@ -4,7 +4,7 @@
 **Working paper:** *Pathway-Constrained Partial Transfer Across Unpaired Retinal Electrophysiology Protocols*
 **Master plan:** `MASTER_PLAN_PATHWAY_AWARE_SIGNED_OT.md` (authoritative blueprint — 10 phases, 36 sections)
 **Changelog:** `CHANGELOG.md` (release history)
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-11
 
 > This file is a plain-language log of what is done, what was changed and why,
 > and what the findings mean. When an error appears, read the "Watch list" and
@@ -40,10 +40,10 @@ as independent people.
 | 3 | Preprocessing, landmarks, components, QC | **DONE (pending review of findings below)** |
 | 4 | Signed OT + synthetic simulations (E1, E2) | **DONE** |
 | 5 | Simple classical baselines (E0/E4) + VMD | **DONE** (2026-08-09, §3.26 grid/K-sweep + §3.31 shortcut review; gate: OOF predictions exist, VMD frequency/stability tests pass, shortcut risks reviewed) |
-| 6 | Separate hierarchical neural models | **IMPLEMENTED; authoritative 5-fold × 3-seed run pending** (§3.30–§3.36) |
-| 7 | Joint SSL + pathway routing | NOT STARTED |
-| 8 | Graph controls + label efficiency | NOT STARTED |
-| 9 | Robustness, statistics, interpretation | NOT STARTED |
+| 6 | Separate hierarchical neural models | **DONE** — authoritative 5-fold × 3-seed × 2-task run + neural confound gate (§3.42) |
+| 7 | Joint SSL + pathway routing | **RUNNING** — authoritative SSL pretrain (5 folds) + SSL-init fine-tune batch in progress (§3.43) |
+| 8 | Graph controls + label efficiency | **RUNNING** — graph-control ×5 and label-efficiency ×3 batches queued in the stage driver (§3.43) |
+| 9 | Robustness, statistics, interpretation | **RUNNING** — probe batteries queued; acceptance/confound gates done |
 | 10 | Paper + release | NOT STARTED |
 
 ---
@@ -1189,6 +1189,117 @@ and `--init-ssl` on `run-separate-neural`.
   progress; ruff clean. Battery launches on authoritative checkpoints
   remain pending on the GPU-enabled torch build.
 
+### 3.42 Phase 6 — authoritative separate-neural run + confound gate (2026-08-11)
+
+The complete `e6_separate_raw_ot_hierarchical_v1` run finished: 2 tasks ×
+5 locked outer folds × 3 seeds = **30/30 COMPLETE** run directories. Each
+run contains four inner checkpoints/OOF tables, an inner-OOF temperature
+calibrator, a fresh outer-train refit, held-out predictions, manifest and
+`COMPLETE` marker. Seeds are averaged to exactly one outer-OOF row per unit;
+bootstrap CIs cluster repeated PERG visits by canonical subject.
+
+**Authoritative 3-seed ensemble results (locked 0.5 threshold):**
+
+| Task | Units / clusters | AUROC [95% cluster CI] | AUPRC | Balanced acc. | Sens. / spec. |
+|---|---:|---:|---:|---:|---:|
+| LEOP primary nine-step | 160 / 160 | **0.682 [0.589, 0.764]** | 0.654 | 0.670 | 0.500 / 0.841 |
+| PERG all visits | 336 / 304 | **0.742 [0.682, 0.798]** | 0.861 | 0.679 | 0.678 / 0.679 |
+
+- **Interpretation:** the separate raw+sOT neural baseline does not beat the
+  best classical comparators. LEOP is in the same band as derot/VMD/clinical
+  models (~0.68–0.70); PERG is close to FPCA+demographics (0.750). This is the
+  correct independent-from-scratch reference for judging joint SSL/pathway
+  routing, not evidence of neural superiority.
+- **Post-hoc E0/E11 confound gate:** new
+  `evaluation/confound_gate.py` + CLI `neural-confound-gate`; artifacts
+  `results/confounds/neural_confound_gate.{json,md}`. **Verdict: PASS.** LEOP
+  fallback/QC/OP-missingness-only AUROCs = 0.533/0.500/0.595, sex-only =
+  0.634; neural minus strongest gated shortcut = +0.087 (minimum +0.05).
+  Female/male neural AUROCs remain 0.670/0.684. PERG fallback/QC =
+  0.541/0.500, OP channel is not applicable, sex-only = 0.524; neural margin
+  = +0.201. Protocol-count/availability is not a neural input and remains
+  forbidden for LEOP `primary_nine_step`.
+- **Resume bug found and fixed before accepting metrics:** resume previously
+  skipped COMPLETE runs without loading their `predictions.parquet`, so a
+  resumed summary initially contained only runs executed by that process
+  (LEOP n=66). Resume now loads every COMPLETE run prediction into the final
+  ensemble and fails if a COMPLETE directory lacks predictions.
+- **Schema-drift bug found and fixed:** two early fold-0 artifacts predated the
+  `label_frac` column and carried NaN while later seeds carried 1.0, splitting
+  one unit into duplicate ensemble rows. Resume normalizes missing
+  `label_frac` to the configured fraction, and a new uniqueness assertion
+  refuses any duplicate `(task, outer_fold, unit_id)` before metrics are
+  written. Correct cardinalities are locked at LEOP 160 and PERG 336.
+- Regression coverage: resume-load/legacy-`label_frac`, missing-prediction
+  failure, ensemble uniqueness, channel semantics (including PERG OP=n/a),
+  exact prediction validation and real-cache gate smoke. Focused verification:
+  29 tests green. Final full verification: **408 tests passed**, repository-wide
+  ruff clean, and `git diff --check` clean.
+
+### 3.43 Phase 7/8/9 — authoritative stage batch launch (2026-08-11)
+
+The GPU-enabled torch build is confirmed working (torch 2.13.0+cu126,
+RTX 3050 6 GB laptop GPU), so the pending authoritative runs from items
+19–22 are now executing through `scripts/stage_runs.sh` (one driver, every
+supervised invocation uses `--resume` so restarting never redoes completed
+run dirs; log `logs/stage_runs_20260811.log`).
+
+- **Phase 7a — joint SSL pretraining:** `e7_ssl_pretrain_v1.yaml`
+  (`routing_graph: correct`, 5 epochs, seed 1001) run once per excluded
+  fold with `--exclude-fold 0..4`; checkpoints land at
+  `results/ssl_pretrain_v1/foldN/final.pt` (SSL held-out exclusion,
+  plan §23.6). All five completed on GPU in minutes.
+- **Phase 7b — SSL-init supervised fine-tuning:** new per-fold configs
+  `configs/experiments/e6_sslinit_foldN_v1.yaml` (N=0..4) run only the
+  matching fold's `tasks × seeds` (2×3 runs each) with
+  `init_ssl: …/foldN/final.pt` and `routing_graph: correct` (the SSL model
+  is graph-routed, so a routed fine-tune model keeps every copied encoder
+  key), shared `output_subdir: separate_raw_ot_hierarchical_sslinit_v1`;
+  `e6_sslinit_summary_v1.yaml` then rebuilds the full 5-fold × 3-seed
+  ensemble by resuming the shared run dirs. 6 distinct configs ⇒ 30 runs.
+- **Phase 8a — pathway graph controls:** `e8_pathway_graph_{correct,
+  none,full,wrong,random}_v1.yaml` share identical hyper-parameters and
+  parameter counts (Module 21.14), differing only in `name`/`method`/
+  `output_subdir`/`routing_graph`; 5 configs × 6 runs = 30 runs each,
+  150 runs total, from scratch (`init_ssl: null`).
+- **Phase 8b — label efficiency (item 21 / E9):** `e8_label_frac_{0.1,
+  0.25,0.5}_v1.yaml` reuse the separate baseline (`method:
+  separate_raw_ot_hierarchical_v1`, unrouted) with whole-subject
+  stratified subsets at `label_frac` (subset_seed 9001 fixed); 90 runs.
+  The 1.0 row is the completed e6 run.
+- **Phase 9 opener — expert-fidelity probes (item 22 / E12):** 10
+  `run-probes` batteries (LEOP + PERG × folds 0–4) on the authoritative e6
+  checkpoints `…/runs/separate_raw_ot_hierarchical_v1-{leop,perg}-foldN-
+  seed1001/final.pt`, 100 bootstrap reps, seed 7.
+- **Bug fixed (SSL on GPU):** `JointSSLLoss` heads were never moved to the
+  configured device, so every CUDA pretrain failed with a mat1/cpu device
+  mismatch; `pretrain_ssl` now calls `loss_fn.to(cfg.device)` + `train()`
+  (ssl.py). Encoder paths already derive their device from the model
+  parameters, so no other SSL changes were needed.
+- **Regression found in the in-flight external-datasets work**
+  (`PLAN_INTEGRATION_EXTERNAL.md` thread): `LoadableCaches.table()` guarded
+  FLINDERS positive labels with a vectorized condition tested as a scalar,
+  which raised `ValueError: truth value of a Series is ambiguous` for
+  every `table()` caller and broke the SSL suite. Fixed with `.any()` so
+  the external-binding work is unblocked while stage runs proceed. The
+  rest of that WIP is untouched.
+- **Bug in my own config derivation, caught mid-run:** the per-fold SSL-init
+  configs were derived with `sed s/fold0/foldN/` which rewrote every
+  `fold0` token but left `outer_folds: [0]` untouched — so configs 1–4
+  resumed fold-0's COMPLETE runs and printed fold-0's ensemble numbers
+  (log "fold 1–4" rows were identical to fold 0; only fold-0's 6 runs and
+  2 fold-1 LEOP runs were real). Worse, those 2 fold-1 LEOP runs were
+  started by the summary config whose `init_ssl` pointed at the fold-0
+  checkpoint — the fold-0 SSL model had seen folds 1–4, i.e. a §23.6
+  leakage. Action: regenerated the four configs with correct
+  `outer_folds` (fold0 file verified unchanged), purged the bogus shared
+  ensemble files, deleted the 2 contaminated run dirs, and re-ran the
+  fold-1 config so all six runs initialize from the fold-1 checkpoint.
+  The driver now skips SSL folds that already have a `COMPLETE` marker and
+  runs detached (`setsid`) so tool-session aborts cannot kill the batch.
+- Cadence observed on the RTX 3050: LEOP ≈ 15 min/run, PERG ≈ 6 min/run;
+  SSL pretrain folds finish in minutes.
+
 ## 4. Key findings so far (numbers to remember)
 
 ### 4.1 Transport math behaves correctly (E1)
@@ -1431,9 +1542,103 @@ correctness first, then a fair old-vs-new comparison:
 # Pre-Phase-6 fallback/confound shortcut review (verdict PASS unblocks Phase 6)
 .venv/bin/python -m pathway_erg.cli confound-review \
   --data configs/data/local.yaml
+
+# Authoritative separate neural ensemble (resume loads all 30 COMPLETE runs)
+.venv/bin/python -m pathway_erg.cli run-separate-neural \
+  --experiment configs/experiments/e6_separate_raw_ot_hierarchical_v1.yaml \
+  --resume
+
+# Post-hoc neural E0/E11 shortcut gate (verdict PASS)
+.venv/bin/python -m pathway_erg.cli neural-confound-gate \
+  --experiment configs/experiments/e6_separate_raw_ot_hierarchical_v1.yaml
 ```
 
 **After any failure:** check (a) the failing manifest under `artifacts/*/manifest.json`,
 (b) whether raw inputs changed (`raw_audit.json`), (c) whether the failing code
 touches test-fold data, (d) the corresponding phase gate in the master plan.
 If the failure is a test failure, run `pytest -x -v tests/` for the exact test.
+
+## 3.44 Plan §11 — external binding: combined 4-domain path (2026-08-11)
+
+Implemented the full §11 external ("data-increase") path additively: the
+LEOP/PERG-only e6/e7 experiments, frozen v4 caches, v1 folds, and manifests
+stay byte-identical. 71 new tests; full suite 479 passed. Real-data smoke
+ran end-to-end on the GPU.
+
+- **Flash-family routing:** `data/schemas.py` adds `FLASH_DATASETS`
+  (LEOP/URFU/FLINDERS), `PATTERN_DATASETS` (PERG), `SUPPORTED_DATASETS`;
+  `signal/landmarks.py`/`segments.py`/`component_cache.py` branch on the
+  flash family (offset policy, OP override, landmarks, segments).
+- **Gate §11.2.2 — external component cache** (`signal/external_cache.py`):
+  `cache-external-components` builds `external_external_v1_v4.zarr` +
+  `components_external_v1.parquet` + own manifest (`binding`/
+  `schema_version`/`datasets`/`config_hash`, refuses existing outputs);
+  `cache_components` now filters to LEOP/PERG so the frozen v4 cache can
+  never be polluted by external rows. Real build: **1253 components from
+  431 valid URFU/FLINDERS recordings**.
+- **External folds** (`data/external_splits.py`): subject-keyed outer/inner
+  folds, version `external_v1`, own files
+  `outer/inner_folds_external_v1.parquet` (real build hash
+  `2f32eb3d…`); `assert_no_leakage` scoped to assigned datasets.
+  New `configs/data/folds_external.yaml` (class/sex/age_bin strata).
+- **Data layer:** `LoadedCaches` gains `external_bindings` +
+  `external_fold_version` (validated, must differ from `fold_version`);
+  `table()`/`build_bags` unit rules — LEOP/FLINDERS subject-keyed,
+  PERG/URFU visit-keyed; FLINDERS `target_binary == 1` raises;
+  `domain_balanced_epoch_indices` N-domain sampler (two-domain output
+  identical to the legacy `domain_balanced_batch_indices`, which now
+  delegates to it).
+- **SSL (item 19 external):** `SSLConfig` adds `ssl_datasets`,
+  `domain_batches`, `plan_per_epoch`, `external_bindings`,
+  `external_fold_version`; `pretrain_ssl` runs N domains with per-domain
+  seeds (LEOP=0, PERG=1 locked; others=2), per-domain batches, ≥2 domains
+  enforced; checkpoint records per-domain `n_components`.
+- **Router/heads:** `UrfuLateAdapter`/`FlindersLateAdapter`
+  (`models/adapters.py`), four-domain `adapter_by_dataset` routing,
+  heads {LEOP, PERG, URFU} (FLINDERS head forbidden); URFU
+  `encode_bag` pools components straight to a per-visit token (no eye
+  level).  URFU supervised endpoint gated by
+  `require_urfu_labels_signed_off` (`data/urfu_labels.py`, §11.2.1 —
+  still PENDING_CLINICAL_REVIEW, SSL unaffected).
+- **Configs:** `e9_ssl_pretrain_external_v1.yaml` (4 domains,
+  `plan_per_epoch: true`, external_v1 binding) + `e9_sslinit_external_
+  fold{0..4}_v1.yaml` + `e9_sslinit_external_summary_v1.yaml`
+  (`separate_raw_ot_hierarchical_sslinit_external_v1`).
+- **Real-data smoke (GPU, 1 epoch):** `run-ssl-pretrain` over all four
+  domains completed — `results/ssl_pretrain_external_v1_smoke/fold4/
+  final.pt`, final epoch total loss 1.2777.
+- **Bugs fixed:** `make_leops_segments`/PERG late-segment fallback used
+  `_canon_flags` (unbound) → renamed `canon_flags` (pre-existing latent,
+  unreachable for LEOP/PERG which always have both landmarks);
+  `config.py` `_from_dict` now supports `tuple[Dataclass, …]` fields so
+  `FoldConfig.constraints` loads (previously the folds CLI path could
+  never load `folds.yaml`).
+
+Remaining (blocked/scheduled): URFU sign-off for the supervised head
+(§11.2.1); then full e9 5-fold SSL + 30-run sslinit ensemble + paired
+comparisons + `artifacts/results/external_v1/` write-up.
+
+### 3.45 Plan §11 — external comparison tooling + staged e9 batch (2026-08-11)
+
+- **Authoritative paired comparison CLI**: `compare-external-sslinit`
+  (`evaluation/external_comparison.py`).  Validates both prediction
+  tables (5-fold coverage, duplicate units, within-subject label
+  consistency, finite [0,1] probabilities), aligns on
+  `outer_fold`/`unit_id`/`subject_id`/`target`, then runs the paired
+  clustered bootstrap of `roc_auc` differences
+  (four-domain external sslinit minus two-domain sslinit) per task via
+  `paired_compare` (`comparisons.py`), with Holm-adjusted p-values over
+  the LEOP/PERG family.  Writes only to
+  `artifacts/results/external_v1/paired_comparisons.json` (atomic
+  replace; frozen trees untouched).  4 new tests
+  (`tests/evaluation/test_external_comparison.py`); subset regression
+  137 passed.
+- **Staged external batch**: `scripts/stage_external_runs.sh` queues
+  the full e9 arm behind the running authoritative stage batch
+  (PID 7304) — five four-domain SSL pretrains
+  (`e9_ssl_pretrain_external_v1.yaml`, `--exclude-fold 0..4`), then the
+  30-run `e9_sslinit_external_fold{0..4}_v1.yaml` supervised fine-tune
+  ensemble (LEOP/PERG only; URFU stays gated), then the summary
+  ensemble.  Resumable: completed folds are skipped, and every
+  supervised invocation uses `--resume`.  Log:
+  `logs/stage_external_runs_20260811.log`.

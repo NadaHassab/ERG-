@@ -240,24 +240,31 @@ def assert_no_leakage(
     visits_df: pd.DataFrame,
     recordings_df: pd.DataFrame,
 ) -> None:
-    """Every leakage assertion from plan Section 13.5 that can be checked statically."""
+    """Every leakage assertion from plan Section 13.5 that can be checked statically.
+
+Dataset-agnostic: every dataset present in ``assignments`` (LEOP/PERG or
+external URFU/FLINDERS) undergoes the same unit-in-one-fold, visit, and
+recording coverage checks; external assignments are subject-keyed exactly
+like the LEOP/PERG ones.
+"""
 
     def _fails(msg: str) -> None:
         raise AssertionError(f"leakage assertion failed: {msg}")
 
-    for dataset in ("LEOP", "PERG"):
+    for dataset in sorted(assignments["dataset"].unique()):
         sub = assignments[assignments["dataset"] == dataset]
         for unit, group in sub.groupby("unit_id"):
             if group["outer_fold"].nunique() > 1:
                 _fails(f"{dataset} unit {unit} in multiple outer folds")
-    visits = visits_df.merge(
+    assigned_datasets = set(assignments["dataset"].unique())
+    visits = visits_df[visits_df["dataset"].isin(assigned_datasets)].merge(
         assignments[["unit_id", "outer_fold"]].rename(columns={"unit_id": "global_subject_id"}),
         on="global_subject_id",
         how="left",
     )
     if visits["outer_fold"].isna().any():
         _fails("some visits lack an outer-fold assignment")
-    rec = recordings_df.merge(
+    rec = recordings_df[recordings_df["dataset"].isin(assigned_datasets)].merge(
         visits[["global_visit_id", "outer_fold"]], on="global_visit_id", how="left"
     )
     if rec["outer_fold"].isna().any():

@@ -38,14 +38,18 @@ from ..data.collate import collate_component_rows
 from ..data.datasets import (
     ComponentDataset,
     LoadedCaches,
-    domain_balanced_batch_indices,
+    domain_balanced_epoch_indices,
 )
+from ..data.schemas import SUPPORTED_DATASETS
 from ..models.path_erg import ComponentEncoding, ModelConfig, build_model
 from ..provenance import RunManifest, git_revision, sha256_file, sha256_text
 from ..signal.component_cache import CACHE_SCHEMA_VERSION, cache_paths
 from .trainer import _WarmupCosine
 
 CANONICAL_SAMPLES = 128
+
+# domain -> fixed per-domain loss seed offset (LEOP/PERG values are frozen)
+_DOMAIN_SEED_OFFSET = {"LEOP": 0, "PERG": 1}
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,11 @@ class SSLConfig:
     gate_prior: float = 0.75
     output_subdir: str = "ssl_pretrain_v1"
     log_every: int = 10
+    ssl_datasets: tuple[str, ...] = ("LEOP", "PERG")
+    domain_batches: dict[str, int] | None = None
+    plan_per_epoch: bool = False
+    external_bindings: tuple[str, ...] = ()
+    external_fold_version: str | None = None
 
 
 @dataclass
@@ -429,11 +438,25 @@ def pretrain_ssl(
     if not train_folds:
         raise ValueError("no training folds left after exclusion")
 
-    caches = caches or LoadedCaches(data_cfg.artifact_root, fold_version=cfg.fold_version)
-    leop = ComponentDataset(caches, "LEOP", outer_folds=train_folds)
-    perg = ComponentDataset(caches, "PERG", outer_folds=train_folds)
-    if len(leop) == 0 or len(perg) == 0:
-        raise ValueError("empty SSL component pool for one domain")
+    caches = caches or LoadedCaches(
+        data_cfg.artifact_root,
+        fold_version=cfg.fold_version,
+        external_bindings=cfg.external_bindings,
+        external_fold_version=cfg.external_fold_version,
+    )
+    if not set(cfg.ssl_datasets) <= {d.value for d in SUPPORTED_DATASETS}:
+        raise ValueError(
+            f"ssl_datasets contains unknown datasets: "
+            f"{sorted(set(cfg.ssl_datasets))}"
+        )
+    domains: dict[str, ComponentDataset] = {}
+    for ds in cfg.ssl_datasets:
+        pool = ComponentDataset(caches, ds, outer_folds=train_folds)
+        if len(pool) == 0:
+            raise ValueError(f"empty SSL component pool for domain {ds}")
+        domains[ds] = pool
+    if len(domains) < 2:
+        raise ValueError("SSL pretraining needs at least two domains")
 
     model = build_model(
         ModelConfig(routing_graph=cfg.routing_graph, stems_seed=cfg.seed,
@@ -442,21 +465,24 @@ def pretrain_ssl(
     model.to(cfg.device)
     model.train()
     loss_fn = JointSSLLoss(cfg, token_dim=128)
+    loss_fn.to(cfg.device)
+    loss_fn.train()
     optimizer = torch.optim.AdamW(
         list(model.parameters()) + list(loss_fn.parameters()),
         lr=cfg.lr, weight_decay=cfg.weight_decay,
     )
+    batches = dict(cfg.domain_batches or {})
+    batches.setdefault("LEOP", cfg.leop_batch)
+    batches.setdefault("PERG", cfg.perg_batch)
+    for ds in domains:
+        batches.setdefault(ds, 64)
     steps_per_epoch = max(
-        int(np.ceil(len(leop) / cfg.leop_batch)),
-        int(np.ceil(len(perg) / cfg.perg_batch)),
+        int(np.ceil(len(domains[ds]) / batches[ds])) for ds in domains
     )
     total_steps = cfg.epochs * steps_per_epoch
     sched = _WarmupCosine(
         optimizer, warmup_steps=cfg.warmup_epochs * steps_per_epoch,
         total_steps=total_steps,
-    )
-    plan = domain_balanced_batch_indices(
-        len(leop), len(perg), cfg.leop_batch, cfg.perg_batch, seed=cfg.seed
     )
     log = SSLLog()
     step = 0
@@ -464,18 +490,26 @@ def pretrain_ssl(
         epoch_loss = 0.0
         epoch_terms: dict[str, float] = {}
         n_steps = 0
-        for leop_idx, perg_idx in plan:
+        plan_seed = cfg.seed + (epoch if cfg.plan_per_epoch else 0)
+        plan = domain_balanced_epoch_indices(
+            {ds: len(domains[ds]) for ds in domains},
+            batches,
+            seed=plan_seed,
+        )
+        for idx_map in plan:
             if n_steps >= steps_per_epoch:
                 break
             step += 1
             terms_both: dict[str, float] = {}
             total = torch.zeros((), device=cfg.device, dtype=torch.float32)
-            for idx, ds in ((leop_idx, "LEOP"), (perg_idx, "PERG")):
+            for ds in domains:
+                idx = idx_map[ds]
                 if len(idx) == 0:
                     continue
-                rows = [leop[i] for i in idx] if ds == "LEOP" else [perg[i] for i in idx]
+                rows = [domains[ds][i] for i in idx]
                 batch = collate_component_batch(rows)
-                loss, terms = loss_fn(model, batch, seed_offset=step * 1000 + (1 if ds == "PERG" else 0))
+                offset = _DOMAIN_SEED_OFFSET.get(ds, 2)
+                loss, terms = loss_fn(model, batch, seed_offset=step * 1000 + offset)
                 total = total + loss
                 for k, v in terms.items():
                     terms_both[f"{ds.lower()}_{k}"] = v
@@ -511,7 +545,7 @@ def pretrain_ssl(
         "log": asdict(log),
         "train_folds": sorted(train_folds),
         "exclude_fold": cfg.exclude_fold,
-        "n_components": {"LEOP": len(leop), "PERG": len(perg)},
+        "n_components": {ds: len(domains[ds]) for ds in domains},
     }
     tmp = out_dir / "final.pt.tmp"
     torch.save(payload, tmp)

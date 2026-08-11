@@ -14,7 +14,7 @@ weight_decay: 0.05
 warmup_epochs: 1
 grad_clip: 1.0
 seed: 1001
-device: cpu
+device: cuda
 mask_len: 24
 ssl_dim: 64
 lambda_mask: 1.0

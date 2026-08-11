@@ -34,7 +34,7 @@ import pandas as pd
 import zarr
 
 from ..config import PreprocessingConfig, config_hash
-from ..data.schemas import Dataset, WaveformKind
+from ..data.schemas import Dataset, FLASH_DATASETS, WaveformKind
 from ..provenance import RunManifest
 from .baseline import apply_offset
 from .landmarks import detect_landmarks
@@ -140,7 +140,10 @@ def process_recording(
 
     signal = interpolate_isolated_nan(time_ms, signal_uv, validity.fixed_mask)
 
-    if dataset is Dataset.LEOP and record["waveform_kind"] == WaveformKind.ERG.value:
+    # Flash-family datasets (LEOP, URFU, FLINDERS) share the full-field flash
+    # baseline policy; PERG is pattern.  LEOP/PERG behavior is unchanged:
+    # the external datasets were never processed into the v4 cache.
+    if dataset in FLASH_DATASETS and record["waveform_kind"] == WaveformKind.ERG.value:
         offset_policy = pre_cfg.leops.baseline
     elif dataset is Dataset.PERG:
         offset_policy = pre_cfg.perg.baseline
@@ -173,7 +176,7 @@ def process_recording(
         op_time_ms=None,
         op_signal_uv=None,
     )
-    if dataset is Dataset.LEOP and record["waveform_kind"] == WaveformKind.OP.value:
+    if dataset in FLASH_DATASETS and record["waveform_kind"] == WaveformKind.OP.value:
         segments = [
             make_op_segment(time_ms, signal, pre_cfg.segmentation.op_default_confidence)
         ]
@@ -336,6 +339,10 @@ def cache_components(
     artifact_root = Path(artifact_root)
     out = cache_paths(artifact_root, CACHE_SCHEMA_VERSION)
     recordings = pd.read_parquet(artifact_root / "data" / "interim" / "recordings.parquet")
+    # The frozen v4 cache is LEOP/PERG only: external datasets are processed
+    # into their own binding by cache_external_components, never here, so a
+    # rebuild against the full recordings table stays byte-identical.
+    recordings = recordings[recordings["dataset"].isin(("LEOP", "PERG"))]
     waveforms = _load_waveforms(artifact_root)
 
     all_rows: list[dict] = []

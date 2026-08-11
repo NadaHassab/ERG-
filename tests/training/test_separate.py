@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 
@@ -21,6 +22,7 @@ from pathway_erg.training.separate import (
     load_inner_map,
     outer_partition,
     predict_bags,
+    run_dir_for,
     run_outer_seed,
     stratified_subset,
 )
@@ -160,6 +162,106 @@ def test_stratified_subset_rejects_bad_fraction(caches):
     for fraction in (0.0, -1.0, 1.5):
         with pytest.raises(ValueError):
             stratified_subset(bags, fraction, 1)
+
+
+def test_resume_loads_predictions_from_complete_runs(caches, tmp_path, monkeypatch):
+    import pathway_erg.training.separate as separate
+
+    _resume_data(tmp_path)
+    cfg = SeparateTrainingConfig(
+        name="resume",
+        tasks=("LEOP",),
+        outer_folds=(0,),
+        seeds=(7, 8),
+        resume=True,
+        output_subdir="resume_test",
+        n_bootstrap_reps=100,
+    )
+    for seed in (7, 8):
+        run_dir = run_dir_for(tmp_path, cfg, "LEOP", 0, seed)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        frac = 1.0 if seed == 7 else np.nan  # stale rows from before label_frac
+        pd.DataFrame(
+            {
+                "method": [cfg.method, cfg.method],
+                "task": ["LEOP", "LEOP"],
+                "cohort": ["primary_nine_step", "primary_nine_step"],
+                "label_frac": [frac, frac],
+                "outer_fold": [0, 0],
+                "unit_id": ["u0", "u1"],
+                "subject_id": ["u0", "u1"],
+                "visit_id": [None, None],
+                "target": [0, 1],
+                "logit": [-1.0, 1.0],
+                "probability": [0.27, 0.73],
+                "calibrated_probability": [0.3, 0.7],
+                "seed": [seed, seed],
+            }
+        ).to_parquet(run_dir / "predictions.parquet", index=False)
+        (run_dir / "COMPLETE").write_text("complete\n")
+
+    def fail(*args, **kwargs):
+        raise AssertionError("run_outer_seed must not be called with resume")
+
+    monkeypatch.setattr(separate, "run_outer_seed", fail)
+    data_cfg = _resume_data_cfg(tmp_path)
+    result = separate.run_separate_training(cfg, data_cfg)
+    assert len(result.predictions) == 2  # ensembled, one row per unit
+    assert result.predictions["label_frac"].eq(1.0).all()
+    ens = pd.read_parquet(
+        f"{tmp_path}/results/resume_test/predictions.parquet"
+    )
+    assert len(ens) == 2
+    assert ens["calibrated_probability"].between(0.3, 0.7).all()
+
+
+def test_resume_raises_when_complete_run_has_no_predictions(caches, tmp_path):
+    import pathway_erg.training.separate as separate
+
+    _resume_data(tmp_path)
+    cfg = SeparateTrainingConfig(
+        name="resume",
+        tasks=("LEOP",),
+        outer_folds=(0,),
+        seeds=(7,),
+        resume=True,
+        output_subdir="resume_test",
+    )
+    complete = run_dir_for(tmp_path, cfg, "LEOP", 0, 7)
+    complete.mkdir(parents=True)
+    (complete / "COMPLETE").write_text("complete\n")
+    with pytest.raises(FileNotFoundError, match="no .*predictions.parquet"):
+        separate.run_separate_training(cfg, _resume_data_cfg(tmp_path))
+
+
+def test_ensemble_uniqueness_guard_rejects_duplicate_units():
+    import pathway_erg.training.separate as separate
+
+    good = pd.DataFrame(
+        {
+            "task": ["LEOP", "LEOP"],
+            "outer_fold": [0, 0],
+            "unit_id": ["u0", "u1"],
+        }
+    )
+    separate._assert_ensemble_uniqueness(good)
+    dup = pd.concat([good, good.iloc[[0]]], ignore_index=True)
+    with pytest.raises(ValueError, match="duplicate unit rows"):
+        separate._assert_ensemble_uniqueness(dup)
+
+
+def _resume_data(tmp_path):
+    (tmp_path / "data").symlink_to(
+        Path("artifacts/data").resolve(), target_is_directory=True
+    )
+
+
+def _resume_data_cfg(tmp_path) -> DataConfig:
+    return DataConfig(
+        leops=LeopsDataConfig(json_root="unused", xlsx_path="unused"),
+        perg=PergDataConfig(root="unused", metadata_csv="unused"),
+        artifact_root=str(tmp_path),
+    )
 
 
 def test_temperature_gradient_matches_finite_difference():

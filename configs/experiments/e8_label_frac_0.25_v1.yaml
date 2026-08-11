@@ -1,0 +1,28 @@
+# Phase 8: label-efficiency subset (plan item 21 / E9). Same separate
+# baseline as e6 but training bags are restricted to the stratified
+# whole-subject subset at the given fraction (subset_seed fixed 9001);
+# outer test folds are never reduced.
+name: e8_label_frac_0.25_v1
+method: separate_raw_ot_hierarchical_v1
+fold_version: v1
+tasks: [LEOP, PERG]
+leop_cohort: primary_nine_step
+outer_folds: [0, 1, 2, 3, 4]
+seeds: [1001, 2002, 3003]
+epochs: 200
+batch_size: 8
+lr: 0.0001
+weight_decay: 0.0001
+warmup_epochs: 5
+patience: 25
+grad_clip: 1.0
+device: cuda
+max_steps_per_epoch: null
+output_subdir: separate_raw_ot_hierarchical_label_0.25_v1
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+init_ssl: null
+routing_graph: null
+label_frac: 0.25
+subset_seed: 9001

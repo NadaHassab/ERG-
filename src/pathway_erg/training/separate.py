@@ -33,6 +33,7 @@ from ..config import DataConfig
 from ..constants import INNER_FOLDS_TEMPLATE, OUTER_FOLDS_TEMPLATE
 from ..data.collate import collate_bag_units
 from ..data.datasets import BagUnit, LoadedCaches, build_bags
+from ..data.urfu_labels import require_urfu_labels_signed_off
 from ..evaluation.calibration import fit_calibrator
 from ..evaluation.metrics import binary_metrics, cluster_bootstrap_ci
 from ..models.path_erg import ModelConfig, build_model
@@ -71,6 +72,9 @@ class SeparateTrainingConfig:
     routing_graph: str | None = None
     label_frac: float = 1.0
     subset_seed: int = 9001
+    resume: bool = False
+    external_bindings: tuple[str, ...] = ()
+    external_fold_version: str | None = None
 
 
 @dataclass
@@ -87,7 +91,12 @@ def build_task_bags(
     leop_cohort: str = "primary_nine_step",
 ) -> list[BagUnit]:
     """Labeled bags with cohort filtering applied before bag construction."""
-    if task not in {"LEOP", "PERG"}:
+    if task == "FLINDERS":
+        raise ValueError(
+            "the FLINDERS supervised head is forbidden (no labels exist; "
+            "plan integration §11.2)"
+        )
+    if task not in {"LEOP", "PERG", "URFU"}:
         raise ValueError(f"unknown task {task!r}")
     allowed: set[str] | None = None
     if task == "LEOP":
@@ -101,6 +110,8 @@ def build_task_bags(
             )
         elif leop_cohort != "secondary_all_protocols":
             raise ValueError(f"unknown LEOP cohort {leop_cohort!r}")
+    elif task == "URFU":
+        require_urfu_labels_signed_off()
     bags = build_bags(caches, task, allowed_recording_ids=allowed)
     return [b for b in bags if b.target_binary is not None]
 
@@ -246,6 +257,20 @@ def build_stage_model(
     return model
 
 
+def run_dir_for(
+    data_root: str | Path,
+    cfg: SeparateTrainingConfig,
+    task: str,
+    outer_fold: int,
+    seed: int,
+) -> Path:
+    """Artifact dir for one task/fold/seed run (mirrors run_outer_seed)."""
+    run_id = f"{cfg.method}-{task.lower()}-fold{outer_fold}-seed{seed}"
+    return (
+        Path(data_root) / "results" / cfg.output_subdir / "runs" / run_id
+    )
+
+
 def run_outer_seed(
     cfg: SeparateTrainingConfig,
     data_cfg: DataConfig,
@@ -269,8 +294,7 @@ def run_outer_seed(
     oof: list[pd.DataFrame] = []
     best_epochs: list[int] = []
 
-    run_id = f"{cfg.method}-{task.lower()}-fold{outer_fold}-seed{seed}"
-    run_dir = Path(data_cfg.artifact_root) / "results" / cfg.output_subdir / "runs" / run_id
+    run_dir = run_dir_for(data_cfg.artifact_root, cfg, task, outer_fold, seed)
     run_dir.mkdir(parents=True, exist_ok=True)
     complete = run_dir / "COMPLETE"
     if complete.exists():
@@ -366,20 +390,48 @@ def run_separate_training(
     cfg: SeparateTrainingConfig, data_cfg: DataConfig
 ) -> SeparateResults:
     """Run all configured task/fold/seed separate baselines."""
-    caches = LoadedCaches(data_cfg.artifact_root, fold_version=cfg.fold_version)
+    caches = LoadedCaches(
+        data_cfg.artifact_root,
+        fold_version=cfg.fold_version,
+        external_bindings=cfg.external_bindings,
+        external_fold_version=cfg.external_fold_version,
+    )
     all_predictions: list[pd.DataFrame] = []
     run_dirs: list[str] = []
     for task in cfg.tasks:
         bags = build_task_bags(caches, task, cfg.leop_cohort)
         for outer_fold in cfg.outer_folds:
             for seed in cfg.seeds:
+                run_dir = run_dir_for(
+                    data_cfg.artifact_root, cfg, task, outer_fold, seed
+                )
+                if cfg.resume and run_dir.joinpath("COMPLETE").exists():
+                    loaded = run_dir / "predictions.parquet"
+                    if not loaded.exists():
+                        raise FileNotFoundError(
+                            f"resume: {run_dir} is COMPLETE but has no "
+                            f"{loaded.name}; cannot rebuild the ensemble"
+                        )
+                    loaded_pred = pd.read_parquet(loaded)
+                    if "label_frac" in loaded_pred.columns:
+                        loaded_pred["label_frac"] = loaded_pred["label_frac"].fillna(
+                            cfg.label_frac
+                        )
+                    else:
+                        loaded_pred["label_frac"] = cfg.label_frac
+                    all_predictions.append(loaded_pred)
+                    run_dirs.append(str(run_dir))
+                    continue
                 pred, run_dir = run_outer_seed(
                     cfg, data_cfg, caches, task, bags, outer_fold, seed
                 )
                 all_predictions.append(pred)
                 run_dirs.append(str(run_dir))
+    if not all_predictions:
+        raise ValueError("no runs to execute (resume found every run COMPLETE)")
     by_seed = pd.concat(all_predictions, ignore_index=True)
     predictions = _ensemble_predictions(by_seed)
+    _assert_ensemble_uniqueness(predictions)
     metrics = _metrics_by_task(predictions, cfg)
     out_dir = Path(data_cfg.artifact_root) / "results" / cfg.output_subdir
     by_seed.to_parquet(out_dir / "predictions_by_seed.parquet", index=False)
@@ -485,6 +537,24 @@ def _ensemble_predictions(by_seed: pd.DataFrame) -> pd.DataFrame:
     )
     out["seed"] = "ensemble"
     return out
+
+
+def _assert_ensemble_uniqueness(predictions: pd.DataFrame) -> None:
+    """Refuse to write metrics from an ensembled table with duplicate units.
+
+    A split identifier (e.g. a NaN vs 1.0 ``label_frac``) can silently split
+    one unit across two ensemble rows; this guard makes that loud.
+    """
+    dup = predictions.duplicated(subset=["task", "outer_fold", "unit_id"])
+    if dup.any():
+        raise ValueError(
+            "ensemble produced duplicate unit rows (identifier mismatch "
+            "across seeds?); refusing to write wrong metrics"
+        )
+    expect = predictions.groupby(["task", "outer_fold"])["unit_id"].nunique()
+    total = predictions.groupby("task").size()
+    if (total != expect.groupby("task").sum()).any():
+        raise ValueError("ensemble unit count does not match fold sums")
 
 
 def _metrics_by_task(

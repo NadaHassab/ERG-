@@ -30,3 +30,11 @@ class FlashLateAdapter(ProtocolAdapter):
 
 class PERGLateAdapter(ProtocolAdapter):
     """PERG adapter; never shared with flash parameters."""
+
+
+class UrfuLateAdapter(ProtocolAdapter):
+    """URFU adapter (plan integration §11.3); never shared with LEOP/PERG."""
+
+
+class FlindersLateAdapter(ProtocolAdapter):
+    """FLINDERS adapter (plan integration §11.3); never shared with LEOP/PERG."""

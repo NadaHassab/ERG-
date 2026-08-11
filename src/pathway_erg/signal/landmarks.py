@@ -13,7 +13,7 @@ import numpy as np
 from scipy.signal import find_peaks
 
 from ..config import LandmarkDetectionConfig
-from ..data.schemas import Dataset, Landmark
+from ..data.schemas import Dataset, FLASH_DATASETS, Landmark
 
 
 def _window_indices(time_ms: np.ndarray, lo: float, hi: float) -> np.ndarray:
@@ -218,6 +218,6 @@ def detect_landmarks(
     config: LandmarkDetectionConfig,
     supplied: dict | None = None,
 ) -> dict[str, Landmark]:
-    if dataset is Dataset.LEOP:
+    if dataset in FLASH_DATASETS:
         return detect_leops_landmarks(time_ms, signal_uv, config, supplied)
     return detect_perg_landmarks(time_ms, signal_uv, config)

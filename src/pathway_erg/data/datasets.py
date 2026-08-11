@@ -41,6 +41,11 @@ from ..signal.component_cache import (
     cache_paths,
     load_cache_manifest,
 )
+from ..signal.external_cache import (
+    external_cache_paths,
+    load_external_cache_manifest,
+)
+from .schemas import SUPPORTED_DATASETS
 
 CANONICAL_SAMPLES = 128
 OT_DIM = 135  # 2x64 quantiles + 2 log masses + mass fraction + 2 variations + 2 flags
@@ -123,25 +128,81 @@ class LoadedCaches:
         self,
         artifact_root: str | Path = "artifacts",
         fold_version: str = "v1",
+        external_bindings: tuple[str, ...] = (),
+        external_fold_version: str | None = None,
     ):
         self.root = Path(artifact_root)
         self.fold_version = fold_version
+        self.external_bindings = external_bindings
+        if external_fold_version is not None and external_fold_version == fold_version:
+            raise ValueError(
+                "external_fold_version must differ from fold_version "
+                "(external folds are a separate table)"
+            )
         cache = cache_paths(self.root, CACHE_SCHEMA_VERSION)
         self.cache_manifest = load_cache_manifest(self.root, CACHE_SCHEMA_VERSION)
         self.components = pd.read_parquet(cache["components_parquet"])
         self.recordings = pd.read_parquet(self.root / "data" / "interim" / "recordings.parquet")
         self.visits = pd.read_parquet(self.root / "data" / "interim" / "visits.parquet")
+        curves = zarr.open_group(str(cache["curves_zarr"]), mode="r")["components"]
+        self.signal = np.asarray(curves["canonical_signal"][:])
+        self.mask = np.asarray(curves["valid_mask"][:])
+        sot = zarr.open_group(str(cache["sot_zarr"]), mode="r")["components"]
+        self.ot = np.asarray(sot["sot_vector"][:])
+        if external_bindings:
+            if external_fold_version is None:
+                raise ValueError(
+                    "external_bindings require external_fold_version "
+                    "(external rows must map to locked folds)"
+                )
+            for binding in external_bindings:
+                ext = external_cache_paths(self.root, binding)
+                load_external_cache_manifest(self.root, binding)
+                ext_components = pd.read_parquet(ext["components_parquet"])
+                if ext_components.empty:
+                    raise ValueError(f"external binding {binding} has no components")
+                self.components = pd.concat(
+                    [self.components, ext_components], ignore_index=True
+                )
+                ext_curves = (
+                    zarr.open_group(str(ext["curves_zarr"]), mode="r")["components"]
+                )
+                ext_sot = zarr.open_group(str(ext["sot_zarr"]), mode="r")["components"]
+                ext_signal = np.asarray(ext_curves["canonical_signal"][:])
+                ext_mask = np.asarray(ext_curves["valid_mask"][:])
+                ext_ot = np.asarray(ext_sot["sot_vector"][:])
+                if not (
+                    ext_signal.shape[0] == ext_mask.shape[0] == ext_ot.shape[0]
+                    == len(ext_components)
+                ):
+                    raise ValueError(
+                        f"external binding {binding}: cache misalignment — rebuild"
+                    )
+                self.signal = np.concatenate([self.signal, ext_signal], axis=0)
+                self.mask = np.concatenate([self.mask, ext_mask], axis=0)
+                self.ot = np.concatenate([self.ot, ext_ot], axis=0)
         self.folds = pd.read_parquet(
             self.root
             / "data"
             / "splits"
             / OUTER_FOLDS_TEMPLATE.format(version=fold_version)
         )
-        curves = zarr.open_group(str(cache["curves_zarr"]), mode="r")["components"]
-        self.signal = np.asarray(curves["canonical_signal"][:])
-        self.mask = np.asarray(curves["valid_mask"][:])
-        sot = zarr.open_group(str(cache["sot_zarr"]), mode="r")["components"]
-        self.ot = np.asarray(sot["sot_vector"][:])
+        if external_fold_version is not None:
+            external_outer = (
+                self.root
+                / "data"
+                / "splits"
+                / OUTER_FOLDS_TEMPLATE.format(version=external_fold_version)
+            )
+            if not external_outer.is_file():
+                raise ValueError(
+                    f"external split table not found at {external_outer}; "
+                    "build it with the make-external-splits command"
+                )
+            self.folds = pd.concat(
+                [self.folds, pd.read_parquet(external_outer)], ignore_index=True
+            )
+            self.external_fold_version = external_fold_version
         self.physical = _physical_matrix(self.components)
         if not (
             self.signal.shape[0] == self.mask.shape[0] == self.ot.shape[0]
@@ -187,12 +248,21 @@ class LoadedCaches:
         """Full component table with locked folds and labels (once)."""
         if self._table is None:
             comp = self._base_table()
-            # LEOP unit = participant, PERG unit = visit (fold key is subject)
+            # LEOP/FLINDERS unit = participant, PERG/URFU unit = visit
+            # (fold units are always subjects; external folds are subject-keyed)
             comp["unit_id"] = np.where(
-                comp["dataset"] == "LEOP",
-                comp["global_subject_id"].astype(str),
+                comp["dataset"].isin(("PERG", "URFU")),
                 comp["global_visit_id"].astype(str),
+                comp["global_subject_id"].astype(str),
             )
+            if (
+                (comp["dataset"] == "FLINDERS")
+                & (comp["target_binary"] == 1)
+            ).any():
+                raise ValueError(
+                    "FLINDERS rows carry a positive supervised label; the "
+                    "FLINDERS supervised head is forbidden (plan §11.2)"
+                )
             fold_map = self.folds.set_index(["dataset", "unit_id"])["outer_fold"]
             comp["outer_fold"] = [
                 fold_map.get((ds, uid), np.nan)
@@ -274,15 +344,19 @@ def build_bags(
     outer_folds: set[int] | None = None,
     allowed_recording_ids: set[str] | None = None,
 ) -> list[BagUnit]:
-    """One :class:`BagUnit` per participant (LEOP) or visit (PERG).
+    """One :class:`BagUnit` per participant (LEOP/FLINDERS) or visit (PERG/URFU).
 
     Bags appear in first-appearance order of the unit in the canonical
     table (deterministic).  ``outer_folds`` filters which units may appear;
     a unit is dropped entirely if any of its components is outside the
     allowed folds (a partial bag would corrupt the hierarchy).
     """
-    if dataset not in ("LEOP", "PERG"):
-        raise ValueError(f"dataset must be LEOP or PERG, got {dataset!r}")
+    if not any(dataset == d.value for d in SUPPORTED_DATASETS):
+        raise ValueError(
+            f"dataset must be one of "
+            f"{sorted(d.value for d in SUPPORTED_DATASETS)}, got {dataset!r}"
+        )
+    visit_unit = dataset in ("PERG", "URFU")
     tbl = caches.table()
     tbl = tbl[tbl["dataset"] == dataset]
     if allowed_recording_ids is not None:
@@ -304,15 +378,15 @@ def build_bags(
         visit_ids = {row.visit_id for row in rows}
         if len(subject_ids) != 1:
             raise ValueError(f"unit {uid} spans subjects {subject_ids}")
-        if dataset == "PERG" and len(visit_ids) != 1:
-            raise ValueError(f"PERG unit {uid} spans visits {visit_ids}")
+        if visit_unit and len(visit_ids) != 1:
+            raise ValueError(f"{dataset} unit {uid} spans visits {visit_ids}")
         target = tbl.loc[tbl["unit_id"].astype(str) == uid, "target_binary"]
         target_v = int(target.iloc[0]) if len(target) and pd.notna(target.iloc[0]) else None
         out.append(
             BagUnit(
                 unit_id=uid,
                 subject_id=next(iter(subject_ids)),
-                visit_id=next(iter(visit_ids)) if dataset == "PERG" else None,
+                visit_id=next(iter(visit_ids)) if visit_unit else None,
                 dataset=dataset,
                 target_binary=target_v,
                 outer_fold=next(iter(folders)),
@@ -336,13 +410,44 @@ def domain_balanced_batch_indices(
     PERG batch are emitted per step regardless of dataset size, so the
     shared expert sees both domains every optimizer step after the first.
     """
-    if leop_batch < 1 or perg_batch < 1:
-        raise ValueError("batch sizes must be >= 1")
+    sizes = {"LEOP": n_leop, "PERG": n_perg}
+    batches = {"LEOP": leop_batch, "PERG": perg_batch}
+    for idx in domain_balanced_epoch_indices(sizes, batches, seed):
+        yield (idx.get("LEOP", np.array([], dtype=np.int64)),
+               idx.get("PERG", np.array([], dtype=np.int64)))
+
+
+def domain_balanced_epoch_indices(
+    sizes: dict[str, int],
+    batches: dict[str, int],
+    seed: int,
+) -> Iterator[dict[str, np.ndarray]]:
+    """Deterministic multi-domain step plan (plan integration §11.3).
+
+    Each yielded step maps domain name -> indices for one batch from a
+    fresh permutation of that domain (last batch may be short); every
+    domain is drawn once per step, so the shared expert sees all domains
+    at every optimizer step.  The single plan is consumed once, exactly
+    like the two-domain ``domain_balanced_batch_indices``.
+    """
+    if not sizes:
+        raise ValueError("no domains given")
+    unknown = set(batches) - set(sizes)
+    if unknown:
+        raise ValueError(f"batch sizes for unknown domains: {sorted(unknown)}")
+    for name, size in sizes.items():
+        if size < 0:
+            raise ValueError(f"domain {name} has negative size {size}")
     rng = np.random.default_rng(seed)
-    leop_idx = rng.permutation(n_leop)
-    perg_idx = rng.permutation(n_perg)
-    li = pi = 0
-    while li < n_leop or pi < n_perg:
-        yield (leop_idx[li : li + leop_batch], perg_idx[pi : pi + perg_batch])
-        li += leop_batch
-        pi += perg_batch
+    perms = {name: rng.permutation(size) for name, size in sizes.items()}
+    pos = {name: 0 for name in sizes}
+    while any(pos[name] < sizes[name] for name in sizes):
+        step_idx: dict[str, np.ndarray] = {}
+        for name in sizes:
+            batch = batches.get(name, 64)
+            if batch < 1:
+                raise ValueError(f"batch size for {name} must be >= 1")
+            lo = pos[name]
+            step_idx[name] = perms[name][lo : lo + batch]
+            pos[name] += batch
+        yield step_idx

@@ -23,7 +23,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..config import SegmentationConfig
-from ..data.schemas import ComponentID, Dataset, Landmark, Segment
+from ..data.schemas import ComponentID, Dataset, FLASH_DATASETS, Landmark, Segment
 from .resample import canonicalize_relative_phase
 
 
@@ -118,7 +118,7 @@ def make_leops_segments(
             n_points=n_points,
         )
     else:
-        canonical_time, canonical_signal, canon_type, _canon_flags = (
+        canonical_time, canonical_signal, canon_type, canon_flags = (
             lt,
             ls,
             "absolute",
@@ -214,7 +214,7 @@ def make_perg_segments(
             n_points=n_points,
         )
     else:
-        canonical_time, canonical_signal, canon_type, _canon_flags = (
+        canonical_time, canonical_signal, canon_type, canon_flags = (
             lt,
             ls,
             "absolute",
@@ -246,8 +246,8 @@ def make_segments(
     op_time_ms: np.ndarray | None = None,
     op_signal_uv: np.ndarray | None = None,
 ) -> list[Segment]:
-    """Build component segments for one waveform (or waveform+OP for LEOP)."""
-    if dataset is Dataset.LEOP:
+    """Build component segments for one waveform (or waveform+OP for FLASH_DATASETS)."""
+    if dataset in FLASH_DATASETS:
         segments = make_leops_segments(time_ms, signal_uv, landmarks, seg_cfg, n_points)
         if op_time_ms is not None and op_signal_uv is not None:
             segments.append(make_op_segment(op_time_ms, op_signal_uv, seg_cfg.op_default_confidence))

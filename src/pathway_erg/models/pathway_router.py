@@ -14,7 +14,12 @@ import numpy as np
 import torch
 from torch import nn
 
-from .adapters import FlashLateAdapter, PERGLateAdapter
+from .adapters import (
+    FlindersLateAdapter,
+    FlashLateAdapter,
+    PERGLateAdapter,
+    UrfuLateAdapter,
+)
 from .experts import (
     FlashEarlyPrivateExpert,
     FlashLatePrivateExpert,
@@ -90,6 +95,8 @@ class PathwayRouter(nn.Module):
         self.local_dim = local_dim
         self.flash_adapter = FlashLateAdapter(local_dim, expert_dim)
         self.perg_adapter = PERGLateAdapter(local_dim, expert_dim)
+        self.urfu_adapter = UrfuLateAdapter(local_dim, expert_dim)
+        self.flinders_adapter = FlindersLateAdapter(local_dim, expert_dim)
         self.private = nn.ModuleDict(
             {
                 "flash_early": FlashEarlyPrivateExpert(local_dim, dropout=dropout),
@@ -142,14 +149,20 @@ class PathwayRouter(nn.Module):
         if idx.numel():
             ds_allowed = datasets[allowed_np]
             adapted = torch.zeros(idx.numel(), 64, device=device, dtype=dtype)
-            flash_local = np.flatnonzero(ds_allowed == "LEOP")
-            perg_local = np.flatnonzero(ds_allowed == "PERG")
-            if len(flash_local):
-                pos = torch.as_tensor(flash_local, device=device)
-                adapted[pos] = self.flash_adapter(local_token[idx[pos]])
-            if len(perg_local):
-                pos = torch.as_tensor(perg_local, device=device)
-                adapted[pos] = self.perg_adapter(local_token[idx[pos]])
+            adapter_by_dataset = {
+                "LEOP": self.flash_adapter,
+                "PERG": self.perg_adapter,
+                "URFU": self.urfu_adapter,
+                "FLINDERS": self.flinders_adapter,
+            }
+            for ds_name, adapter in adapter_by_dataset.items():
+                ds_local = np.flatnonzero(ds_allowed == ds_name)
+                if len(ds_local):
+                    pos = torch.as_tensor(ds_local, device=device)
+                    adapted[pos] = adapter(local_token[idx[pos]])
+            unknown = set(ds_allowed.tolist()) - set(adapter_by_dataset)
+            if unknown:
+                raise ValueError(f"router has no adapter for datasets: {sorted(unknown)}")
             shared_allowed = self.shared_expert(adapted)
             shared[idx] = shared_allowed
             conf = confidence[idx].to(device=device, dtype=dtype).clamp(0.0, 1.0)

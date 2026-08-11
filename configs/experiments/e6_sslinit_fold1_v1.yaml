@@ -1,0 +1,29 @@
+# Phase 7: supervised fine-tuning initialized from the fold-0 joint SSL
+# checkpoint (SSL pretrain excluded fold 0, plan 23.6). Only this fold's
+# runs execute; a summary pass with all folds and --resume rebuilds the
+# 5-fold ensemble from the shared output_subdir.
+name: e6_sslinit_fold1_v1
+method: separate_raw_ot_hierarchical_sslinit_v1
+fold_version: v1
+tasks: [LEOP, PERG]
+leop_cohort: primary_nine_step
+outer_folds: [1]
+seeds: [1001, 2002, 3003]
+epochs: 200
+batch_size: 8
+lr: 0.0001
+weight_decay: 0.0001
+warmup_epochs: 5
+patience: 25
+grad_clip: 1.0
+device: cuda
+max_steps_per_epoch: null
+output_subdir: separate_raw_ot_hierarchical_sslinit_v1
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+init_ssl: artifacts/results/ssl_pretrain_v1/fold1/final.pt
+routing_graph: correct
+label_frac: 1.0
+subset_seed: 9001
+resume: false

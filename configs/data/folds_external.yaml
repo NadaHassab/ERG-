@@ -1,0 +1,10 @@
+n_outer: 5
+n_inner: 4
+outer_seed: 2026
+inner_seed: 2027
+version: external_v1
+age_bins: [10, 18, 35, 55]
+constraints:
+  - {column: class, weight: 2.0}
+  - {column: sex, weight: 1.0}
+  - {column: age_bin, weight: 1.0}

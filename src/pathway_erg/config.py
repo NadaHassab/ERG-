@@ -80,9 +80,14 @@ def _from_dict(schema: type[T], data: dict[str, Any], where: str) -> T:
                 inner = a
                 break
         if inner is not None and is_dataclass(inner):
-            if not isinstance(value, dict):
-                raise ConfigError(f"{where}.{f.name}: expected mapping")
-            kwargs[f.name] = _from_dict(inner, value, f"{where}.{f.name}")
+            if origin in (list, set, tuple):
+                if not isinstance(value, list):
+                    raise ConfigError(f"{where}.{f.name}: expected list")
+                kwargs[f.name] = tuple(_from_dict(inner, item, f"{where}.{f.name}") for item in value)
+            else:
+                if not isinstance(value, dict):
+                    raise ConfigError(f"{where}.{f.name}: expected mapping")
+                kwargs[f.name] = _from_dict(inner, value, f"{where}.{f.name}")
         elif origin in (list, set, tuple):
             kwargs[f.name] = value
         else:

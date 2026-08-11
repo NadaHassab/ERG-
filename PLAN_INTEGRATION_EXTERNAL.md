@@ -1,6 +1,6 @@
 # Integration Plan: Flinders ISCEV Control + URFU Pediatric/Adult ERG
 
-Status: COMPLETE (gates 1–7)
+Status: COMPLETE (gates 1–7) + Section 11 DESIGNED (separate path, not implemented)
 Owner: pathway_erg maintainer
 
 ## 0. Constraints (non-negotiable)
@@ -257,6 +257,100 @@ behavior, and in which direction?
 
 ## 10. Out of scope (this iteration)
 
-- Training full SSL/transfer models (after effect probes justify).
+- Training full SSL/transfer models — *see Section 11, the separate path*.
 - Cross-site domain-shift experiments (after ingestion gates pass).
 - The `.sav` twin of Flinders (redundant with `.xlsx`; audit-only).
+
+## 11. Separate path design — combined modeling over LEOP + PERG + FLINDERS + URFU
+
+**Status: IMPLEMENTED (2026-08-11), pending URFU label sign-off for the
+supervised endpoint.**  §11.2 gates 2–3 and §11.5 items 2–6 (except item 1)
+are done (PROGRESS §3.44): external component cache + manifest, external
+subject-keyed folds, `SUPPORTED_DATASETS` relaxation + FLINDERS label-0
+guard, N-domain SSL sampler, URFU adapter/head (gated on sign-off), e9
+configs, and a real-data 4-domain SSL smoke.  This section is the
+authoritative spec for the separate path.  It is *separate*: it must never
+mutate any frozen LEOP/PERG artefact, config, cache manifest, or result
+(constraint §0.1).
+
+### 11.1 Objective and questions
+
+Build and evaluate pathway models whose *encoder and routers* are exposed to
+all four domains, while the *supervised endpoints* (LEOP, PERG, URFU) keep
+their own heads.  Questions the path must answer:
+
+1. Does unsupervised (SSL) exposure to FLINDERS normatives + URFU pediatric/
+   adult waveforms improve LEOP/PERG endpoints over the frozen LEOP+PERG-only
+   SSL baseline (e7)?
+2. Does the shared router transfer to URFU's supervised diagnosis endpoint
+   (no-diagnosis vs reduced) better than the URFU feature-only probe
+   (AUROC 0.727)?
+3. Are FLINDERS healthy controls a contamination risk (labels all zero) or a
+   stabilizer (normative prior, plan `gate_prior`)?
+
+### 11.2 Hard gates before implementation
+
+1. **URFU label review** — `urfu_labels_v1` is PENDING_CLINICAL_REVIEW
+   (PROGRESS §3.28 probe 3).  No URFU-supervised endpoint may be trained
+   until the mapping is signed off.  SSL-only use of URFU is not gated.
+2. **Component cache for external datasets** — `vmd_cache.py`/`vmd_grid.py`
+   explicitly note URFU/FLINDERS rows have **no cached components** today.
+   A separate cache binding (own manifest, own data_hash, same schema
+   version) must be built; the LEOP/PERG cache manifest must stay
+   byte-identical.
+3. **Split discipline for external units** — FLINDERS and URFU get their own
+   fold assignment files (subject-level, `splits.py` machinery, version
+   `v1`), never mixed into LEOP/PERG fold files.  URFU units follow the
+   PERG rule (per-visit bag under the subject); FLINDERS units per-subject.
+
+### 11.3 Architecture deltas (design only)
+
+1. **Data layer.** `build_bags` (`data/datasets.py:284`) relaxes the
+   LEOP/PERG guard to a `SUPPORTED_DATASETS` tuple = (LEOP, PERG, FLINDERS,
+   URFU); `training/separate.py:91` keeps its guard but the config
+   `tasks` tuple may list URFU; FLINDERS appears only as
+   `ssl_datasets` (never in `tasks` — no labels for a supervised head).
+2. **SSL mixing.** `training/ssl.py` `pretrain_ssl` generalizes the
+   domain-balanced sampler from 2 fixed domains (LEOP, PERG)
+   to `N` configured domains with per-domain batch sizes and an explicit
+   `ssl_holdout` fold.  FLINDERS enters as an unlabeled pool
+   (`target_binary = 0`, "eligible" per §1.1) — never with a head.
+   URFU enters label-free for SSL even while its review is pending (§11.2.1).
+3. **Router.** `PathwayRouter` (`models/pathway_router.py`) gains per-domain
+   adapters for URFU (protocols 30Hz, Maximum 2.0, OPS, Photopic 2.0,
+   Scotopic 2.0 — maps to existing flash/PERG adapter families only where
+   protocol semantics match; otherwise new adapter class) and FLINDERS
+   (LA3/30Hz/DA00x/OPS).  Private/shared expert gates stay as designed.
+4. **Heads.** LEOP/PERG heads unchanged.  New URFU head consumes the routed
+   token; a FLINDERS head is *forbidden* (all-zero labels would train a
+   degenerate constant).
+5. **Config.** New `configs/experiments/e9_external_v1.yaml` mirroring the
+   e6/e7 schema with added fields: `tasks: [LEOP, PERG, URFU]`,
+   `ssl_datasets: [LEOP, PERG, FLINDERS, URFU]`, `urfu_labels_version:
+   urfu_labels_v1` (must equal the signed-off version), `cache_binding:
+   external_v1` (new manifest name).
+
+### 11.4 Evaluation plan (leak-free, frozen-path-safe)
+
+| endpoint | design | comparison |
+|---|---|---|
+| LEOP primary (nine-step) | replicate the p9 frozen run with the new 4-domain encoder | frozen p9 metric object (paired bootstrap, `comparisons.py paired_compare`) |
+| PERG | same, frozen p9 PERG cohort | frozen PERG row |
+| URFU | held-out participant logreg/head on routed features vs `urfu_sanity` AUROC 0.727 | feature-probe metrics.json |
+| FLINDERS | calibration-only: routed-token distribution vs `flinders_calibration` KS stats | calibration_report.json |
+
+All external results write to `artifacts/results/external_v1/` — a new tree
+that shadows none of the frozen ones.
+
+### 11.5 Implementation order (when green-lit)
+
+1. Signed-off `urfu_labels_v2`.  2. External component cache + manifest
+   (gate §11.2.2) + `test_external_splits` subject-level noise tests.
+3. `SUPPORTED_DATASETS` relaxation + FLINDERS label-0 guard.  4. N-domain SSL
+   sampler (single-domain smoke first, then 4-domain).  5. URFU adapter +
+   head + URFU supervised endpoint.  6. e9 config + full run + paired
+   comparisons + PROGRESS.md §3.3x section.
+
+Approximate scope: ~6 new modules, ~80-120 new tests, no existing frozen
+module's public behavior altered (any required change is additive and
+flagged in CHANGELOG.md).

@@ -1,0 +1,10 @@
+# Plan section 11.4: FLINDERS calibration-only probe on frozen routed tokens
+# of the four-domain SSL encoder.  Headless: no FLINDERS head is trained;
+# only routed-token distributions vs matched LEOP controls are compared.
+# Expected checkpoint: artifacts/results/ssl_pretrain_external_v1/foldN/final.pt
+output_subdir: external_v1/flinders_calibration
+batch_size: 128
+seed: 7
+n_boot_reps: 100
+protocols: [LA3, 30Hz, OPS, DA00x]
+reference_report: artifacts/results/flinders_calibration/calibration_report.json

@@ -3,8 +3,8 @@
 # are the same file with routing_graph swapped; the config hash and run
 # manifest distinguish them, and parameter counts are identical across
 # controls (Module 21.14).
-name: e8_pathway_graph_correct_v1
-method: pathway_graph_correct_v1
+name: e8_pathway_graph_full_v1
+method: pathway_graph_full_v1
 fold_version: v1
 tasks: [LEOP, PERG]
 leop_cohort: primary_nine_step
@@ -19,9 +19,9 @@ patience: 25
 grad_clip: 1.0
 device: cuda
 max_steps_per_epoch: null
-output_subdir: pathway_graph_correct_v1
+output_subdir: pathway_graph_full_v1
 n_bootstrap_reps: 2000
 bootstrap_seed: 424242
 confidence: 0.95
 init_ssl: null
-routing_graph: correct
+routing_graph: full

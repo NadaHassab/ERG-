@@ -174,7 +174,7 @@ class PathModel(nn.Module):
         self.heads = nn.ModuleDict(
             {
                 task: _Head(TOKEN_DIM, dropout=config.dropout, seed=config.head_seed)
-                for task in ("LEOP", "PERG")
+                for task in ("LEOP", "PERG", "URFU")
             }
         )
 
@@ -305,6 +305,11 @@ class PathModel(nn.Module):
             attn["eye"] = a1
             token_pooled, a2 = self._pool_single(e_tok, e_valid)
             attn["participant"] = a2
+        elif task == "URFU":
+            # URFU has no eye labels: pool components straight to the
+            # per-visit token (no eye level).
+            token_pooled, a1 = self._pool_single(token, comp_valid)
+            attn["participant"] = a1
         else:
             raise ValueError(f"unknown task {task!r}")
 

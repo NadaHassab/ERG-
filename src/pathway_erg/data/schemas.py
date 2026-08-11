@@ -25,6 +25,19 @@ class Dataset(str, Enum):  # noqa: UP042
     URFU = "URFU"
 
 
+# Full-field flash ERG datasets share the flash landmark/segment/component
+# family (L_* component ids); PERG uses the pattern family (P_* ids).
+# External datasets (URFU, FLINDERS) enter the combined path through these
+# sets (plan integration §11.3); LEOP/PERG behavior is unchanged.
+FLASH_DATASETS: frozenset[Dataset] = frozenset(
+    {Dataset.LEOP, Dataset.URFU, Dataset.FLINDERS}
+)
+PATTERN_DATASETS: frozenset[Dataset] = frozenset({Dataset.PERG})
+SUPPORTED_DATASETS: frozenset[Dataset] = frozenset(
+    {Dataset.LEOP, Dataset.PERG, Dataset.URFU, Dataset.FLINDERS}
+)
+
+
 class Eye(str, Enum):  # noqa: UP042
     RIGHT = "RE"
     LEFT = "LE"

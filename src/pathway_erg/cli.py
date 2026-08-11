@@ -156,6 +156,45 @@ def cmd_run_qa(args) -> int:
     return 0
 
 
+def cmd_cache_external(args) -> int:
+    from .signal.external_cache import cache_external_components
+
+    data_cfg = load_config(DataConfig, args.data)
+    pre_cfg = load_config(PreprocessingConfig, args.preprocessing)
+    summary = cache_external_components(
+        data_cfg.artifact_root,
+        pre_cfg,
+        datasets=tuple(args.datasets),
+        binding=args.binding,
+    )
+    print(json.dumps(summary, indent=2, sort_keys=True, default=str))
+    return 0
+
+
+def cmd_make_external_splits(args) -> int:
+    from .data.external_splits import EXTERNAL_FOLD_VERSION, build_external_splits
+    from .data.splits import FoldConfig
+
+    data_cfg = load_config(DataConfig, args.data)
+    fold_cfg = load_config(FoldConfig, args.fold_config)
+    subjects = _read_parquet(data_cfg, "participants")
+    visits = _read_parquet(data_cfg, "visits")
+    recordings = _read_parquet(data_cfg, "recordings")
+    result = build_external_splits(
+        data_cfg.artifact_root,
+        subjects,
+        visits,
+        recordings,
+        fold_cfg,
+        datasets=tuple(args.datasets),
+        version=args.version or EXTERNAL_FOLD_VERSION,
+    )
+    summary = json.loads(result.paths["summary"].read_text())
+    print(json.dumps({"split_hash": summary["split_hash"]}, indent=2))
+    print(json.dumps(result.report, indent=2, sort_keys=True)[:4000])
+    return 0
+
+
 def cmd_cache_components(args) -> int:
     from .signal.component_cache import cache_components
 
@@ -397,11 +436,30 @@ def cmd_run_ssl_pretrain(args) -> int:
     return 0
 
 
+def cmd_compare_external_sslinit(args) -> int:
+    from .evaluation.external_comparison import compare_external_sslinit
+
+    result = compare_external_sslinit(
+        args.external_predictions,
+        args.internal_predictions,
+        args.output,
+        n_reps=args.n_reps,
+        n_perm=args.n_perm,
+        seed=args.seed,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_run_separate_neural(args) -> int:
+    import dataclasses
+
     from .training.separate import SeparateTrainingConfig, run_separate_training
 
     data_cfg = load_config(DataConfig, args.data)
     cfg = load_config(SeparateTrainingConfig, args.experiment)
+    if args.resume:
+        cfg = dataclasses.replace(cfg, resume=True)
     result = run_separate_training(cfg, data_cfg)
     for task, metrics in sorted(result.metrics.items()):
         print(
@@ -412,6 +470,23 @@ def cmd_run_separate_neural(args) -> int:
     out = Path(data_cfg.artifact_root) / "results" / cfg.output_subdir
     print(f"predictions: {out / 'predictions.parquet'}")
     return 0
+
+
+def cmd_run_neural_confound_gate(args) -> int:
+    from .evaluation.confound_gate import run_confound_gate
+    from .training.separate import SeparateTrainingConfig
+
+    data_cfg = load_config(DataConfig, args.data)
+    cfg = load_config(SeparateTrainingConfig, args.experiment)
+    r = run_confound_gate(data_cfg.artifact_root, cfg)
+    print(f"verdict: {r['verdict']}")
+    for c in r["checks"]:
+        print(f"[{c['outcome']:>4}] {c['check']}: {c['measurement']}")
+    print(
+        "report: "
+        f"{Path(data_cfg.artifact_root) / 'results' / 'confounds' / 'neural_confound_gate.md'}"
+    )
+    return 0 if r["verdict"] == "PASS" else 1
 
 
 def cmd_run_probes(args) -> int:
@@ -449,6 +524,36 @@ def cmd_run_probes(args) -> int:
     return 0
 
 
+def cmd_run_flinders_routed_calibration(args) -> int:
+    from .evaluation.flinders_routed import (
+        FlindersRoutedConfig,
+        run_flinders_routed_calibration,
+    )
+
+    data_cfg = load_config(DataConfig, args.data)
+    cfg = load_config(FlindersRoutedConfig, args.config)
+    report = run_flinders_routed_calibration(
+        data_cfg.artifact_root,
+        args.checkpoint,
+        args.fold,
+        cfg,
+        device=args.device,
+    )
+    out_dir = Path(data_cfg.artifact_root) / "results" / cfg.output_subdir
+    print(f"report: {out_dir / 'calibration_report.json'}")
+    for stream, rows in sorted(report["per_stream"].items()):
+        if isinstance(rows, dict):
+            print(f"[{stream}] {rows.get('note', '')}")
+            continue
+        for row in rows:
+            print(
+                f"[{stream}] {row['protocol']}: KS={row['ks_median_dim']:.3f} "
+                f"[{row['ci_low']:.3f}, {row['ci_high']:.3f}] "
+                f"FL={row['n_flinders_subjects']} LEOP={row['n_leop_controls']}"
+            )
+    return 0
+
+
 def _pywt_note() -> str:
     import pywt
 
@@ -478,6 +583,26 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data", default="configs/data/local.yaml")
     p.add_argument("--preprocessing", default="configs/preprocessing/reference.yaml")
     p.set_defaults(func=cmd_cache_components)
+
+    p = sub.add_parser(
+        "cache-external-components",
+        help="external (URFU/FLINDERS) component cache, separate binding",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument("--preprocessing", default="configs/preprocessing/reference.yaml")
+    p.add_argument("--datasets", nargs="+", default=["URFU", "FLINDERS"])
+    p.add_argument("--binding", default="external_v1")
+    p.set_defaults(func=cmd_cache_external)
+
+    p = sub.add_parser(
+        "make-external-splits",
+        help="external (URFU/FLINDERS) subject-keyed nested folds",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument("--fold-config", default="configs/data/folds.yaml")
+    p.add_argument("--datasets", nargs="+", default=["URFU", "FLINDERS"])
+    p.add_argument("--version", default=None)
+    p.set_defaults(func=cmd_make_external_splits)
 
     p = sub.add_parser("run-qa", help="pipeline QA HTML report")
     p.add_argument("--data", default="configs/data/local.yaml")
@@ -594,7 +719,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--experiment",
         default="configs/experiments/e6_separate_raw_ot_hierarchical_v1.yaml",
     )
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="skip runs whose run dir already has a COMPLETE marker",
+    )
     p.set_defaults(func=cmd_run_separate_neural)
+
+    p = sub.add_parser(
+        "neural-confound-gate",
+        help="post-hoc confound gate on ensembled neural OOF predictions "
+             "(plan Section 17 / E0 decision rule)",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument(
+        "--experiment",
+        default="configs/experiments/e6_separate_raw_ot_hierarchical_v1.yaml",
+    )
+    p.set_defaults(func=cmd_run_neural_confound_gate)
 
     p = sub.add_parser(
         "run-ssl-pretrain",
@@ -612,6 +754,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="outer fold excluded from SSL and its supervised fine-tuning",
     )
     p.set_defaults(func=cmd_run_ssl_pretrain)
+
+    p = sub.add_parser(
+        "compare-external-sslinit",
+        help="paired LEOP/PERG comparison of four-domain vs two-domain SSL-init",
+    )
+    p.add_argument(
+        "--external-predictions",
+        default="artifacts/results/separate_raw_ot_hierarchical_sslinit_external_v1/predictions.parquet",
+    )
+    p.add_argument(
+        "--internal-predictions",
+        default="artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet",
+    )
+    p.add_argument(
+        "--output",
+        default="artifacts/results/external_v1/paired_comparisons.json",
+    )
+    p.add_argument("--n-reps", type=int, default=2000)
+    p.add_argument("--n-perm", type=int, default=1000)
+    p.add_argument("--seed", type=int, default=424242)
+    p.set_defaults(func=cmd_compare_external_sslinit)
 
     p = sub.add_parser(
         "run-probes",
@@ -632,6 +795,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-reps", type=int, default=100)
     p.add_argument("--seed", type=int, default=7)
     p.set_defaults(func=cmd_run_probes)
+
+    p = sub.add_parser(
+        "flinders-routed-calibration",
+        help="plan §11.4: headless FLINDERS routed-token calibration probe",
+    )
+    p.add_argument("--data", default="configs/data/local.yaml")
+    p.add_argument("--config", default="configs/experiments/e9_flinders_routed_v1.yaml")
+    p.add_argument("--checkpoint", required=True)
+    p.add_argument("--fold", type=int, required=True)
+    p.add_argument("--device", default="cpu")
+    p.set_defaults(func=cmd_run_flinders_routed_calibration)
 
     return parser
 

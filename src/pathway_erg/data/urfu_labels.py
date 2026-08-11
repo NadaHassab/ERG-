@@ -175,6 +175,25 @@ def make_urfu_target(diagnosis_raw: str | None, mapping: DiagnosisMapping) -> in
     return mapping.map(diagnosis_raw)
 
 
+def require_urfu_labels_signed_off(version: str = URFU_MAPPING_VERSION) -> None:
+    """Hard gate (plan integration §11.2): no URFU supervised endpoint may
+    run until the diagnosis mapping is clinician-signed (reviewer no longer
+    ``PENDING_CLINICAL_REVIEW``).  Raises with the blocking reason; refuses
+    to run silently against an unreviewed mapping."""
+    mapping = build_urfu_mapping(pd.Series(dtype=str))
+    if mapping.version != version:
+        raise ValueError(
+            f"URFU mapping version {mapping.version!r} does not match "
+            f"required {version!r}"
+        )
+    if mapping.reviewer == "PENDING_CLINICAL_REVIEW" or not mapping.reviewer:
+        raise ValueError(
+            "URFU supervised endpoint blocked: diagnosis mapping "
+            f"{version!r} is PENDING_CLINICAL_REVIEW (reviewer "
+            f"{mapping.reviewer!r}); SSL-only use is not blocked"
+        )
+
+
 def write_urfu_mapping(mapping: DiagnosisMapping, out_dir: Path) -> Path:
     from .labels import write_mapping_csv
 
