@@ -376,13 +376,17 @@ def _target_kinds() -> tuple[tuple[str, str], ...]:
 
 
 def load_model_from_checkpoint(path: str | Path) -> tuple[PathModel, SeparateTrainingConfig, int]:
-    """Rebuild the exact staged model from ``final.pt`` (or inner fold)."""
+    """Rebuild the exact staged model from ``final.pt`` (or inner fold).
+
+    Strict=False: checkpoints predating the external-datasets head set
+    (e.g. no ``heads.URFU``) load fine; probes never touch task heads.
+    """
     path = Path(path)
     payload = torch.load(path, map_location="cpu", weights_only=False)
     cfg = SeparateTrainingConfig(**payload["experiment"])
     seed = int(payload["seed"])
     model = build_stage_model(cfg, seed)
-    model.load_state_dict(payload["model"])
+    model.load_state_dict(payload["model"], strict=False)
     return model, cfg, seed
 
 

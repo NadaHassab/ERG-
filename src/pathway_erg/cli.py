@@ -511,8 +511,9 @@ def cmd_run_probes(args) -> int:
     out_dir = (
         Path(data_cfg.artifact_root) / "results" / cfg.output_subdir / "probes"
     )
+    task = Path(args.checkpoint).parent.name.split("-fold")[0].split("-")[-1]
     out = save_probe_report(
-        results, out_dir / f"probe_battery_fold{args.fold}.parquet"
+        results, out_dir / task / f"probe_battery_fold{args.fold}.parquet"
     )
     for r in results:
         ci = f"[{r.ci_low:.3f}, {r.ci_high:.3f}]" if r.ci_low is not None else "[—]"

@@ -1,0 +1,34 @@
+[driver] ===== Phase 7a: SSL pretrain fold 0 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 1 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 2 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 3 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 4 (already complete, skipped) =====
+[driver] ===== Phase 7b: SSL-init fine-tune fold 0 =====
+LEOP  AUROC=0.6294 [0.4196, 0.8392] n=35 clusters=35
+PERG  AUROC=0.7845 [0.6535, 0.8932] n=62 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 1 =====
+LEOP  AUROC=0.6844 [0.4756, 0.8889] n=30 clusters=30
+PERG  AUROC=0.7505 [0.6124, 0.8750] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 2 =====
+LEOP  AUROC=0.4143 [0.2048, 0.6333] n=29 clusters=29
+PERG  AUROC=0.6343 [0.4964, 0.7663] n=71 clusters=61
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 3 =====
+LEOP  AUROC=0.6833 [0.4875, 0.8667] n=31 clusters=31
+PERG  AUROC=0.7756 [0.6521, 0.8849] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 4 =====
+LEOP  AUROC=0.6233 [0.4233, 0.8100] n=35 clusters=35
+PERG  AUROC=0.7630 [0.6333, 0.8768] n=65 clusters=63
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init 5-fold summary ensemble =====
+LEOP  AUROC=0.6143 [0.5222, 0.7017] n=160 clusters=160
+PERG  AUROC=0.7315 [0.6731, 0.7901] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'correct' =====
+LEOP  AUROC=0.6739 [0.5835, 0.7603] n=160 clusters=160
+PERG  AUROC=0.7207 [0.6619, 0.7784] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_correct_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'none' =====

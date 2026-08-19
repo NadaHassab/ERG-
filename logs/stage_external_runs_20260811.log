@@ -1,0 +1,44 @@
+[external-driver] ===== e9 four-domain SSL fold 0 =====
+/home/nada/Downloads/new_paper/src/pathway_erg/training/ssl.py:319: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:822.)
+  if float(ds.max()) > 0 and float(dz.max()) > 0:
+SSL checkpoint: artifacts/results/ssl_pretrain_external_v1/fold0/final.pt
+train folds: [1, 2, 3, 4]
+final epoch total loss: 0.9199
+[external-driver] ===== e9 four-domain SSL fold 1 =====
+/home/nada/Downloads/new_paper/src/pathway_erg/training/ssl.py:319: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:822.)
+  if float(ds.max()) > 0 and float(dz.max()) > 0:
+SSL checkpoint: artifacts/results/ssl_pretrain_external_v1/fold1/final.pt
+train folds: [0, 2, 3, 4]
+final epoch total loss: 0.9097
+[external-driver] ===== e9 four-domain SSL fold 2 =====
+/home/nada/Downloads/new_paper/src/pathway_erg/training/ssl.py:319: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:822.)
+  if float(ds.max()) > 0 and float(dz.max()) > 0:
+SSL checkpoint: artifacts/results/ssl_pretrain_external_v1/fold2/final.pt
+train folds: [0, 1, 3, 4]
+final epoch total loss: 0.9266
+[external-driver] ===== e9 four-domain SSL fold 3 =====
+/home/nada/Downloads/new_paper/src/pathway_erg/training/ssl.py:319: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:822.)
+  if float(ds.max()) > 0 and float(dz.max()) > 0:
+SSL checkpoint: artifacts/results/ssl_pretrain_external_v1/fold3/final.pt
+train folds: [0, 1, 2, 4]
+final epoch total loss: 0.9158
+[external-driver] ===== e9 four-domain SSL fold 4 =====
+/home/nada/Downloads/new_paper/src/pathway_erg/training/ssl.py:319: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:822.)
+  if float(ds.max()) > 0 and float(dz.max()) > 0:
+SSL checkpoint: artifacts/results/ssl_pretrain_external_v1/fold4/final.pt
+train folds: [0, 1, 2, 3]
+final epoch total loss: 0.9170
+[external-driver] ===== e9 external SSL-init fine-tune fold 0 =====
+LEOP  AUROC=0.6573 [0.4580, 0.8462] n=35 clusters=35
+PERG  AUROC=0.7810 [0.6476, 0.8909] n=62 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_external_v1/predictions.parquet
+[external-driver] ===== e9 external SSL-init fine-tune fold 1 =====
+LEOP  AUROC=0.7956 [0.6044, 0.9600] n=30 clusters=30
+PERG  AUROC=0.7515 [0.6162, 0.8755] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_external_v1/predictions.parquet
+[external-driver] ===== e9 external SSL-init fine-tune fold 2 =====

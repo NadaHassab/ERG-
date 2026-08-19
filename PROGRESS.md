@@ -1297,8 +1297,83 @@ run dirs; log `logs/stage_runs_20260811.log`).
   fold-1 config so all six runs initialize from the fold-1 checkpoint.
   The driver now skips SSL folds that already have a `COMPLETE` marker and
   runs detached (`setsid`) so tool-session aborts cannot kill the batch.
-- Cadence observed on the RTX 3050: LEOP ≈ 15 min/run, PERG ≈ 6 min/run;
-  SSL pretrain folds finish in minutes.
+- **Phase 8b results (label efficiency, whole-subject subsets, seed 9001):**
+
+  | label_frac | LEOP AUROC [95% CI] | PERG AUROC [95% CI] |
+  |---|---:|---:|
+  | 0.10 | 0.601 [0.511, 0.690] | 0.604 [0.535, 0.670] |
+  | 0.25 | 0.557 [0.461, 0.647] | 0.718 [0.657, 0.778] |
+  | 0.50 | 0.628 [0.534, 0.718] | 0.727 [0.665, 0.784] |
+  | 1.00 (e6) | 0.682 [0.589, 0.764] | 0.742 [0.682, 0.798] |
+
+  PERG degrades smoothly and stays near its ceiling already at 25% labels;
+  LEOP is noisier (non-monotonic at 0.25, small cohort + fixed subset
+  seed) and needs the full label set for its best 0.682.
+- **Phase 9 opener:** 10 probe batteries were launched on the authoritative
+  e6 checkpoints but every one failed at `load_model_from_checkpoint` — the
+  external-datasets work added `heads.URFU` to `PathModel` while old
+  checkpoints lack those keys and the loader was strict. Fixed with
+  `strict=False` (probes never touch task heads); a probes-only runner
+  (`scripts/run_probes.sh`) + watchdog relaunched the batteries
+  (logs/probes_20260811.log).
+- **Operational hardening:** the stage batch kept dying silently (partial
+  run dirs, idle GPU). A generic watchdog (`scripts/watchdog.sh
+  <driver> <log>`) now restarts the driver until its final "done" line;
+  every restart resumes from `COMPLETE` markers, so no work is re-run
+  except interrupted runs.
+- **Phase 9 opener results — expert-fidelity probes (10/10 batteries,
+  all folds, frozen embeddings, linear probes):**
+
+  | Target | LEOP fused | PERG fused |
+  |---|---:|---:|
+  | component identity (OVR AUROC) | 0.995 | 0.995 |
+  | dataset identity (AUROC) | 0.994 | 0.991 |
+  | flash intensity (Pearson r) | 0.559 | 0.563 |
+  | log1p peak-to-peak (Pearson r) | 0.989 | 0.989 |
+  | log1p duration (Pearson r) | 0.995 | 0.994 |
+
+  Frozen embeddings are near-lossless for waveform morphology and domain
+  identity but only moderately linear in flash intensity — consistent
+  with the negative transfer results: the encoder memorizes perceptible
+  structure (dataset/component/amplitude) without learning the
+  classification-relevant intensity contrast.
+- **Probe report naming bug fixed:** batteries were saved flat as
+  `probe_battery_foldN.parquet`, so the PERG fold-0 report silently
+  overwrote the LEOP fold-0 report. Reports are now task-scoped
+  (`probes/{leop,perg}/probe_battery_foldN.parquet`); the LEOP fold-0
+  battery and both mid-run-killed PERG fold 1–2 batteries were re-run.
+  Final sets: 5 LEOP + 5 PERG parquet+JSON reports.
+- **Phase 8a results so far (from-scratch routed controls, 3-seed ensembles):**
+
+  | Control | LEOP AUROC [95% CI] | PERG AUROC [95% CI] |
+  |---|---:|---:|
+  | separate baseline (e6, unrouted) | 0.682 [0.589, 0.764] | 0.742 [0.682, 0.798] |
+  | `correct` (pathway graph) | **0.674 [0.584, 0.760]** | **0.721 [0.662, 0.778]** |
+  | `none` (no sharing) | **0.654 [0.562, 0.739]** | **0.726 [0.665, 0.785]** |
+  | `full` (all sharing) | **0.644 [0.556, 0.733]** | **0.721 [0.661, 0.779]** |
+  | `wrong` (misrouted) | **0.650 [0.560, 0.730]** | **0.721 [0.659, 0.780]** |
+  | `random` (gated by chance) | **0.670 [0.581, 0.755]** | **0.723 [0.661, 0.781]** |
+
+  **Complete Phase 8a finding: no routing control beats the unrouted
+  separate baseline (LEOP 0.682 / PERG 0.742).** All five graph variants
+  cluster tightly (LEOP 0.644–0.674, PERG 0.721–0.726); the pathway
+  structure (correct/none/full/wrong/random) has essentially no effect —
+  a clean null result for learned pathway routing on these tasks.
+
+  The correct pathway graph does not beat the unrouted separate baseline
+  (LEOP −0.008, PERG −0.021); `none`/`full`/`wrong`/`random` pending.
+- **Phase 7b results (all 30 runs + 5-fold summary, SSL-init ensemble):**
+
+  | Task | AUROC [95% CI] | AUPRC | Balanced acc. | n |
+  |---|---|---:|---:|---:|
+  | LEOP (SSL-init) | **0.614 [0.522, 0.702]** | 0.586 | 0.609 | 160 |
+  | PERG (SSL-init) | **0.731 [0.673, 0.790]** | 0.850 | 0.668 | 336 |
+
+  Per-fold SSL-init AUROCs: LEOP 0.629/0.684/0.414/0.683/0.623 (fold 2
+  badly degraded), PERG 0.785/0.751/0.634/0.776/0.763. SSL pretraining +
+  frozen encoders does **not** beat the from-scratch separate baseline
+  (LEOP −0.068, PERG −0.011) — a clean negative result for the reference
+  SSL objective under the freeze-encoders Stage C contract.
 
 ## 4. Key findings so far (numbers to remember)
 
@@ -1642,3 +1717,27 @@ comparisons + `artifacts/results/external_v1/` write-up.
   ensemble.  Resumable: completed folds are skipped, and every
   supervised invocation uses `--resume`.  Log:
   `logs/stage_external_runs_20260811.log`.
+
+### 3.46 Plan §11 — FLINDERS routed-token calibration + real-data smoke (2026-08-11)
+
+- **Headless §11.4 evaluator** (`evaluation/flinders_routed.py` +
+  `flinders-routed-calibration` CLI + `configs/experiments/
+  e9_flinders_routed_v1.yaml`): loads a four-domain **SSL** checkpoint
+  (`payload["config"]`), asserts `exclude_fold` matches, FLINDERS in
+  `ssl_datasets`, external binding/fold present, and **no FLINDERS head
+  keys**; extracts frozen routed tokens (`encode_component_frame`) for
+  held-out-fold FLINDERS + matched LEOP controls, aggregates per
+  subject/protocol, and reports median-per-dimension KS with a
+  subject bootstrap CI per stream (`fused`/`shared`/`private`).  Writes
+  only `artifacts/results/external_v1/flinders_calibration/`
+  (`calibration_report.json`, `routed_tokens.parquet`, `COMPLETE`) plus
+  the existing feature-calibration report as reference.  6 new tests
+  (`tests/evaluation/test_flinders_routed.py`); regression subset
+  156 passed.
+- **Real-data smoke (GPU)**: ran against the fold-4 smoke checkpoint —
+  9 held-out FLINDERS components vs 1386 LEOP controls; no protocol
+  overlap on that fold, so per-stream KS rows are honestly empty
+  (descriptive-only until the full five-fold e9 checkpoints land).
+- **Queue status**: `stage_external_runs.sh` still waiting on the
+  authoritative stage batch (PID 7304, currently e6_sslinit fold 3);
+  e9 arm starts automatically when it exits.

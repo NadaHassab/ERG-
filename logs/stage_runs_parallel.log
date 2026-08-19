@@ -1,0 +1,10 @@
+[driver] 20:09:54 start graph_none
+[driver] 20:09:54 start graph_full
+[driver] 20:09:54 start graph_wrong
+[driver] 20:09:54 start graph_correct
+Terminated
+[driver] 22:57:51 FAIL graph_none
+Terminated
+[driver] 23:00:10 FAIL graph_full
+Terminated
+[driver] 23:25:29 FAIL graph_wrong

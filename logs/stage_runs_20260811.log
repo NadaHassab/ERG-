@@ -16,3 +16,308 @@ LEOP  AUROC=0.4143 [0.2048, 0.6333] n=29 clusters=29
 PERG  AUROC=0.6343 [0.4964, 0.7663] n=71 clusters=61
 predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
 [driver] ===== Phase 7b: SSL-init fine-tune fold 3 =====
+LEOP  AUROC=0.6833 [0.4875, 0.8667] n=31 clusters=31
+PERG  AUROC=0.7756 [0.6521, 0.8849] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 4 =====
+LEOP  AUROC=0.6233 [0.4233, 0.8100] n=35 clusters=35
+PERG  AUROC=0.7630 [0.6333, 0.8768] n=65 clusters=63
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init 5-fold summary ensemble =====
+LEOP  AUROC=0.6143 [0.5222, 0.7017] n=160 clusters=160
+PERG  AUROC=0.7315 [0.6731, 0.7901] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'correct' =====
+LEOP  AUROC=0.6739 [0.5835, 0.7603] n=160 clusters=160
+PERG  AUROC=0.7207 [0.6619, 0.7784] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_correct_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'none' =====
+LEOP  AUROC=0.6539 [0.5622, 0.7388] n=160 clusters=160
+PERG  AUROC=0.7258 [0.6649, 0.7851] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_none_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'full' =====
+LEOP  AUROC=0.6441 [0.5557, 0.7325] n=160 clusters=160
+PERG  AUROC=0.7210 [0.6608, 0.7789] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_full_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'wrong' =====
+LEOP  AUROC=0.6495 [0.5601, 0.7304] n=160 clusters=160
+PERG  AUROC=0.7206 [0.6591, 0.7796] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_wrong_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'random' =====
+LEOP  AUROC=0.6697 [0.5809, 0.7549] n=160 clusters=160
+PERG  AUROC=0.7228 [0.6611, 0.7813] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_random_v1/predictions.parquet
+[driver] ===== Phase 8b: label efficiency 0.1 =====
+LEOP  AUROC=0.6013 [0.5107, 0.6899] n=160 clusters=160
+PERG  AUROC=0.6038 [0.5346, 0.6703] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_label_0.1_v1/predictions.parquet
+[driver] ===== Phase 8b: label efficiency 0.25 =====
+LEOP  AUROC=0.5565 [0.4613, 0.6474] n=160 clusters=160
+PERG  AUROC=0.7182 [0.6566, 0.7777] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_label_0.25_v1/predictions.parquet
+[driver] ===== Phase 8b: label efficiency 0.5 =====
+[watchdog] 17:26:35 launching driver
+[driver] ===== Phase 7a: SSL pretrain fold 0 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 1 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 2 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 3 (already complete, skipped) =====
+[driver] ===== Phase 7a: SSL pretrain fold 4 (already complete, skipped) =====
+[driver] ===== Phase 7b: SSL-init fine-tune fold 0 =====
+LEOP  AUROC=0.6294 [0.4196, 0.8392] n=35 clusters=35
+PERG  AUROC=0.7845 [0.6535, 0.8932] n=62 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 1 =====
+LEOP  AUROC=0.6844 [0.4756, 0.8889] n=30 clusters=30
+PERG  AUROC=0.7505 [0.6124, 0.8750] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 2 =====
+LEOP  AUROC=0.4143 [0.2048, 0.6333] n=29 clusters=29
+PERG  AUROC=0.6343 [0.4964, 0.7663] n=71 clusters=61
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 3 =====
+LEOP  AUROC=0.6833 [0.4875, 0.8667] n=31 clusters=31
+PERG  AUROC=0.7756 [0.6521, 0.8849] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init fine-tune fold 4 =====
+LEOP  AUROC=0.6233 [0.4233, 0.8100] n=35 clusters=35
+PERG  AUROC=0.7630 [0.6333, 0.8768] n=65 clusters=63
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 7b: SSL-init 5-fold summary ensemble =====
+LEOP  AUROC=0.6143 [0.5222, 0.7017] n=160 clusters=160
+PERG  AUROC=0.7315 [0.6731, 0.7901] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'correct' =====
+LEOP  AUROC=0.6739 [0.5835, 0.7603] n=160 clusters=160
+PERG  AUROC=0.7207 [0.6619, 0.7784] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_correct_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'none' =====
+LEOP  AUROC=0.6539 [0.5622, 0.7388] n=160 clusters=160
+PERG  AUROC=0.7258 [0.6649, 0.7851] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_none_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'full' =====
+LEOP  AUROC=0.6441 [0.5557, 0.7325] n=160 clusters=160
+PERG  AUROC=0.7210 [0.6608, 0.7789] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_full_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'wrong' =====
+LEOP  AUROC=0.6495 [0.5601, 0.7304] n=160 clusters=160
+PERG  AUROC=0.7206 [0.6591, 0.7796] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_wrong_v1/predictions.parquet
+[driver] ===== Phase 8a: pathway graph control 'random' =====
+LEOP  AUROC=0.6697 [0.5809, 0.7549] n=160 clusters=160
+PERG  AUROC=0.7228 [0.6611, 0.7813] n=336 clusters=304
+predictions: artifacts/results/pathway_graph_random_v1/predictions.parquet
+[driver] ===== Phase 8b: label efficiency 0.1 =====
+LEOP  AUROC=0.6013 [0.5107, 0.6899] n=160 clusters=160
+PERG  AUROC=0.6038 [0.5346, 0.6703] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_label_0.1_v1/predictions.parquet
+[driver] ===== Phase 8b: label efficiency 0.25 =====
+LEOP  AUROC=0.5565 [0.4613, 0.6474] n=160 clusters=160
+PERG  AUROC=0.7182 [0.6566, 0.7777] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_label_0.25_v1/predictions.parquet
+[driver] ===== Phase 8b: label efficiency 0.5 =====
+LEOP  AUROC=0.6283 [0.5336, 0.7180] n=160 clusters=160
+PERG  AUROC=0.7265 [0.6649, 0.7843] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_label_0.5_v1/predictions.parquet
+[driver] ===== Phase 9 opener: probes leop fold 0 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-leop-fold0-seed1001/final.pt --fold 0 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes leop fold 1 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-leop-fold1-seed1001/final.pt --fold 1 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes leop fold 2 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-leop-fold2-seed1001/final.pt --fold 2 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes leop fold 3 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-leop-fold3-seed1001/final.pt --fold 3 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes leop fold 4 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-leop-fold4-seed1001/final.pt --fold 4 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes perg fold 0 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-perg-fold0-seed1001/final.pt --fold 0 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes perg fold 1 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-perg-fold1-seed1001/final.pt --fold 1 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes perg fold 2 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-perg-fold2-seed1001/final.pt --fold 2 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes perg fold 3 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-perg-fold3-seed1001/final.pt --fold 3 --n-reps 100 --seed 7
+[driver] ===== Phase 9 opener: probes perg fold 4 =====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 820, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 816, in main
+    return args.func(args)
+           ^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/cli.py", line 501, in cmd_run_probes
+    model, cfg, _ = load_model_from_checkpoint(args.checkpoint)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nada/Downloads/new_paper/src/pathway_erg/evaluation/probes.py", line 385, in load_model_from_checkpoint
+    model.load_state_dict(payload["model"])
+  File "/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 2638, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PathModel:
+	Missing key(s) in state_dict: "heads.URFU.net.0.weight", "heads.URFU.net.0.bias", "heads.URFU.net.3.weight", "heads.URFU.net.3.bias". 
+[driver] FAILED: .venv/bin/python -m pathway_erg.cli run-probes --data configs/data/local.yaml --checkpoint artifacts/results/separate_raw_ot_hierarchical_v1/runs/separate_raw_ot_hierarchical_v1-perg-fold4-seed1001/final.pt --fold 4 --n-reps 100 --seed 7
+[driver] done, aggregate exit status: 1
+[watchdog] 19:53:22 driver exited with 0, restarting in 30s
+[watchdog] driver finished all stages
