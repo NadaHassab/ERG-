@@ -1,0 +1,41 @@
+=== Paired comparison ===
+{
+  "confidence": 0.95,
+  "difference": "four_domain_external_sslinit - leop_perg_only_sslinit",
+  "external_predictions": "artifacts/results/separate_raw_ot_hierarchical_sslinit_external_v1/predictions.parquet",
+  "internal_predictions": "artifacts/results/separate_raw_ot_hierarchical_sslinit_v1/predictions.parquet",
+  "metric": "roc_auc",
+  "n_bootstrap_reps": 2000,
+  "n_permutations": 1000,
+  "seed": 42,
+  "tasks": {
+    "LEOP": {
+      "ci_high": 0.11727430555555551,
+      "ci_low": -0.016106376262626152,
+      "diff_mean": 0.04917329545454544,
+      "diff_point": 0.0492424242424242,
+      "metric": "roc_auc",
+      "n_clusters": 160,
+      "n_replicates_skipped": 0,
+      "n_replicates_used": 2000,
+      "n_units": 160,
+      "p_value": 0.17882117882117882,
+      "p_value_holm": 0.35764235764235763
+    },
+    "PERG": {
+      "ci_high": 0.01582425091977838,
+      "ci_low": -0.039038562427767196,
+      "diff_mean": -0.012282746222488448,
+      "diff_point": -0.012059064807219189,
+      "metric": "roc_auc",
+      "n_clusters": 304,
+      "n_replicates_skipped": 0,
+      "n_replicates_used": 2000,
+      "n_units": 336,
+      "p_value": 0.6363636363636364,
+      "p_value_holm": 0.6363636363636364
+    }
+  }
+}
+=== Flinders routed calibration ===
+report: artifacts/results/external_v1/flinders_calibration/calibration_report.json

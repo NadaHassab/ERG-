@@ -1,0 +1,163 @@
+[watchdog] 20:09:36 launching scripts/run_probes.sh
+[driver] ===== Phase 9 opener: probes =====
+[driver] ===== probes leop fold 0 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 2.1968871166677673e-10.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 2.1968871166677673e-10.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 2.1968871166677673e-10.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 2.1968871166677673e-10.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 6.87716052993892e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 6.87716052993892e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.999 [0.999, 0.999] (n=4926)
+all  fused   dataset_identity   roc_auc=0.998 [0.997, 0.998] (n=4926)
+all  fused   flash_intensity    pearson_r=0.551 [0.519, 0.586] (n=4406)
+all  fused   peak_to_peak       pearson_r=0.991 [0.990, 0.992] (n=4926)
+all  fused   duration           pearson_r=0.996 [0.996, 0.996] (n=4926)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [1.000, 1.000] (n=4406)
+LEOP fused   flash_intensity    pearson_r=0.551 [0.519, 0.586] (n=4406)
+LEOP fused   peak_to_peak       pearson_r=0.991 [0.991, 0.992] (n=4406)
+LEOP fused   duration           pearson_r=0.997 [0.997, 0.997] (n=4406)
+PERG fused   component_identity roc_auc=0.985 [0.979, 0.990] (n=520)
+PERG fused   peak_to_peak       pearson_r=0.986 [0.983, 0.988] (n=520)
+PERG fused   duration           pearson_r=0.994 [0.994, 0.995] (n=520)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/probe_battery_fold0.parquet
+[driver] ===== probes leop fold 1 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 7.144574709627705e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 7.144574709627705e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.999 [0.998, 0.999] (n=4613)
+all  fused   dataset_identity   roc_auc=0.995 [0.992, 0.997] (n=4613)
+all  fused   flash_intensity    pearson_r=0.559 [0.524, 0.584] (n=4061)
+all  fused   peak_to_peak       pearson_r=0.992 [0.992, 0.993] (n=4613)
+all  fused   duration           pearson_r=0.996 [0.995, 0.996] (n=4613)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [1.000, 1.000] (n=4061)
+LEOP fused   flash_intensity    pearson_r=0.559 [0.524, 0.584] (n=4061)
+LEOP fused   peak_to_peak       pearson_r=0.992 [0.992, 0.993] (n=4061)
+LEOP fused   duration           pearson_r=0.997 [0.996, 0.997] (n=4061)
+PERG fused   component_identity roc_auc=0.987 [0.981, 0.993] (n=552)
+PERG fused   peak_to_peak       pearson_r=0.987 [0.985, 0.990] (n=552)
+PERG fused   duration           pearson_r=0.994 [0.994, 0.995] (n=552)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/probe_battery_fold1.parquet
+[driver] ===== probes leop fold 2 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 7.817472891247235e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 7.817472891247235e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.997 [0.996, 0.999] (n=4363)
+all  fused   dataset_identity   roc_auc=0.985 [0.977, 0.994] (n=4363)
+all  fused   flash_intensity    pearson_r=0.583 [0.547, 0.608] (n=3803)
+all  fused   peak_to_peak       pearson_r=0.991 [0.990, 0.991] (n=4363)
+all  fused   duration           pearson_r=0.994 [0.993, 0.995] (n=4363)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [1.000, 1.000] (n=3803)
+LEOP fused   flash_intensity    pearson_r=0.583 [0.547, 0.608] (n=3803)
+LEOP fused   peak_to_peak       pearson_r=0.993 [0.992, 0.993] (n=3803)
+LEOP fused   duration           pearson_r=0.996 [0.995, 0.996] (n=3803)
+PERG fused   component_identity roc_auc=0.982 [0.974, 0.991] (n=560)
+PERG fused   peak_to_peak       pearson_r=0.978 [0.974, 0.984] (n=560)
+PERG fused   duration           pearson_r=0.990 [0.987, 0.993] (n=560)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/probe_battery_fold2.parquet
+[driver] ===== probes leop fold 3 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 8.312382959729803e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 8.312382959729803e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.999 [0.998, 1.000] (n=4504)
+all  fused   dataset_identity   roc_auc=0.997 [0.995, 0.998] (n=4504)
+all  fused   flash_intensity    pearson_r=0.556 [0.515, 0.579] (n=3936)
+all  fused   peak_to_peak       pearson_r=0.991 [0.990, 0.992] (n=4504)
+all  fused   duration           pearson_r=0.996 [0.996, 0.996] (n=4504)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [1.000, 1.000] (n=3936)
+LEOP fused   flash_intensity    pearson_r=0.556 [0.515, 0.579] (n=3936)
+LEOP fused   peak_to_peak       pearson_r=0.991 [0.990, 0.992] (n=3936)
+LEOP fused   duration           pearson_r=0.997 [0.997, 0.997] (n=3936)
+PERG fused   component_identity roc_auc=0.993 [0.989, 0.998] (n=568)
+PERG fused   peak_to_peak       pearson_r=0.976 [0.968, 0.989] (n=568)
+PERG fused   duration           pearson_r=0.993 [0.993, 0.994] (n=568)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/probe_battery_fold3.parquet
+[driver] ===== probes leop fold 4 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 7.234958587787332e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 7.234958587787332e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.999 [0.999, 0.999] (n=4663)
+all  fused   dataset_identity   roc_auc=0.997 [0.995, 0.999] (n=4663)
+all  fused   flash_intensity    pearson_r=0.544 [0.519, 0.573] (n=4155)
+all  fused   peak_to_peak       pearson_r=0.993 [0.992, 0.993] (n=4663)
+all  fused   duration           pearson_r=0.996 [0.996, 0.996] (n=4663)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [1.000, 1.000] (n=4155)
+LEOP fused   flash_intensity    pearson_r=0.544 [0.519, 0.573] (n=4155)
+LEOP fused   peak_to_peak       pearson_r=0.993 [0.993, 0.994] (n=4155)
+LEOP fused   duration           pearson_r=0.997 [0.997, 0.997] (n=4155)
+PERG fused   component_identity roc_auc=0.988 [0.980, 0.995] (n=508)
+PERG fused   peak_to_peak       pearson_r=0.989 [0.986, 0.991] (n=508)
+PERG fused   duration           pearson_r=0.993 [0.992, 0.994] (n=508)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/probe_battery_fold4.parquet
+[driver] ===== probes perg fold 0 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 6.545921849010483e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 6.545921849010483e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.999 [0.999, 0.999] (n=4926)
+all  fused   dataset_identity   roc_auc=0.996 [0.995, 0.997] (n=4926)
+all  fused   flash_intensity    pearson_r=0.587 [0.550, 0.620] (n=4406)
+all  fused   peak_to_peak       pearson_r=0.992 [0.991, 0.993] (n=4926)
+all  fused   duration           pearson_r=0.995 [0.995, 0.996] (n=4926)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [1.000, 1.000] (n=4406)
+LEOP fused   flash_intensity    pearson_r=0.587 [0.550, 0.620] (n=4406)
+LEOP fused   peak_to_peak       pearson_r=0.993 [0.993, 0.994] (n=4406)
+LEOP fused   duration           pearson_r=0.996 [0.996, 0.997] (n=4406)
+PERG fused   component_identity roc_auc=0.986 [0.980, 0.991] (n=520)
+PERG fused   peak_to_peak       pearson_r=0.987 [0.984, 0.989] (n=520)
+PERG fused   duration           pearson_r=0.993 [0.993, 0.994] (n=520)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/probe_battery_fold0.parquet
+[driver] ===== probes perg fold 1 =====
+Terminated
+[driver] FAILED probes perg fold 1
+[driver] ===== probes perg fold 2 =====
+Terminated
+[driver] FAILED probes perg fold 2
+[driver] ===== probes perg fold 3 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 8.350401259349383e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 8.350401259349383e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.999 [0.998, 1.000] (n=4504)
+all  fused   dataset_identity   roc_auc=0.993 [0.989, 0.996] (n=4504)
+all  fused   flash_intensity    pearson_r=0.567 [0.531, 0.591] (n=3936)
+all  fused   peak_to_peak       pearson_r=0.992 [0.991, 0.993] (n=4504)
+all  fused   duration           pearson_r=0.995 [0.994, 0.995] (n=4504)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [1.000, 1.000] (n=3936)
+LEOP fused   flash_intensity    pearson_r=0.567 [0.531, 0.591] (n=3936)
+LEOP fused   peak_to_peak       pearson_r=0.992 [0.991, 0.994] (n=3936)
+LEOP fused   duration           pearson_r=0.996 [0.996, 0.997] (n=3936)
+PERG fused   component_identity roc_auc=0.993 [0.990, 0.998] (n=568)
+PERG fused   peak_to_peak       pearson_r=0.974 [0.967, 0.989] (n=568)
+PERG fused   duration           pearson_r=0.992 [0.991, 0.993] (n=568)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/perg/probe_battery_fold3.parquet
+[driver] ===== probes perg fold 4 =====
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 6.266414231959061e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+/home/nada/Downloads/new_paper/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 6.266414231959061e-08.
+  return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+all  fused   component_identity macro_ovr_auroc=0.999 [0.999, 0.999] (n=4663)
+all  fused   dataset_identity   roc_auc=0.993 [0.990, 0.995] (n=4663)
+all  fused   flash_intensity    pearson_r=0.539 [0.512, 0.567] (n=4155)
+all  fused   peak_to_peak       pearson_r=0.993 [0.992, 0.994] (n=4663)
+all  fused   duration           pearson_r=0.993 [0.992, 0.994] (n=4663)
+LEOP fused   component_identity macro_ovr_auroc=1.000 [0.999, 1.000] (n=4155)
+LEOP fused   flash_intensity    pearson_r=0.539 [0.512, 0.567] (n=4155)
+LEOP fused   peak_to_peak       pearson_r=0.994 [0.993, 0.994] (n=4155)
+LEOP fused   duration           pearson_r=0.994 [0.994, 0.995] (n=4155)
+PERG fused   component_identity roc_auc=0.988 [0.981, 0.994] (n=508)
+PERG fused   peak_to_peak       pearson_r=0.987 [0.985, 0.989] (n=508)
+PERG fused   duration           pearson_r=0.990 [0.989, 0.991] (n=508)
+report: artifacts/results/separate_raw_ot_hierarchical_v1/probes/perg/probe_battery_fold4.parquet
+[driver] done, aggregate exit status: 1
+[watchdog] 20:55:05 scripts/run_probes.sh exited with 0, restarting in 30s
+[watchdog] driver finished all stages
