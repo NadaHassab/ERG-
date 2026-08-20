@@ -1,0 +1,30 @@
+\begin{table}[htbp]
+\centering
+\caption{Simulation E2. MSE under varying protocol mismatch (m), noise ($\sigma^2$), and sample size (n).}
+\label{tab:simulation}
+\begin{tabular}{cccccccc}
+\toprule
+Mismatch & $\sigma^2$ & $n$ & Full & Partial (oracle) & Separate & Learned gate & Winner \\
+\midrule
+0.0 & 0.1 & 100 & 0.000502 & 0.000826 & 0.000988 & 0.000950 & full \\
+ & 0.1 & 1000 & 0.000048 & 0.000082 & 0.000098 & 0.000096 & full \\
+ & 1.0 & 100 & 0.004934 & 0.008220 & 0.010191 & 0.009730 & full \\
+ & 1.0 & 1000 & 0.000488 & 0.000817 & 0.000979 & 0.000984 & full \\
+ \midrule
+0.25 & 0.1 & 100 & 0.010746 & 0.000831 & 0.001013 & 0.001391 & oracle_partial \\
+ & 0.1 & 1000 & 0.010434 & 0.000082 & 0.000099 & 0.000141 & oracle_partial \\
+ & 1.0 & 100 & 0.014943 & 0.008422 & 0.010076 & 0.013430 & oracle_partial \\
+ & 1.0 & 1000 & 0.010861 & 0.000815 & 0.000979 & 0.001374 & oracle_partial \\
+ \midrule
+1.0 & 0.1 & 100 & 0.041947 & 0.000808 & 0.000974 & 0.001623 & oracle_partial \\
+ & 0.1 & 1000 & 0.041725 & 0.000084 & 0.000100 & 0.000127 & oracle_partial \\
+ & 1.0 & 100 & 0.046354 & 0.008523 & 0.010101 & 0.014479 & oracle_partial \\
+ & 1.0 & 1000 & 0.042089 & 0.000817 & 0.000987 & 0.001420 & oracle_partial \\
+ \midrule
+4.0 & 0.1 & 100 & 0.166524 & 0.000802 & 0.000957 & 0.001406 & oracle_partial \\
+ & 0.1 & 1000 & 0.166841 & 0.000078 & 0.000096 & 0.000125 & oracle_partial \\
+ & 1.0 & 100 & 0.173463 & 0.008148 & 0.009769 & 0.014039 & oracle_partial \\
+ & 1.0 & 1000 & 0.166730 & 0.000827 & 0.000991 & 0.001398 & oracle_partial \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+\centering
+\caption{Graph control ablations. Patient-level AUROC with clustered bootstrap 95\% CI.}
+\label{tab:graph-controls}
+\begin{tabular}{llcccc}
+\toprule
+Sharing & Task & AUROC & 95\% CI & $n$ & Clusters \\
+\midrule
+Separate (baseline) & LEOP & 0.682 & [0.589, 0.764] & 160 & 160 \\
+ & PERG & 0.742 & [0.682, 0.798] & 336 & 304 \\
+ \midrule
+Pathway (correct) & LEOP & 0.674 & [0.583, 0.760] & 160 & 160 \\
+ & PERG & 0.721 & [0.662, 0.778] & 336 & 304 \\
+ \midrule
+No sharing & LEOP & 0.654 & [0.562, 0.739] & 160 & 160 \\
+ & PERG & 0.726 & [0.665, 0.785] & 336 & 304 \\
+ \midrule
+Full sharing & LEOP & 0.644 & [0.556, 0.732] & 160 & 160 \\
+ & PERG & 0.721 & [0.661, 0.779] & 336 & 304 \\
+ \midrule
+Misrouted & LEOP & 0.649 & [0.560, 0.730] & 160 & 160 \\
+ & PERG & 0.721 & [0.659, 0.780] & 336 & 304 \\
+ \midrule
+Random gate & LEOP & 0.670 & [0.581, 0.755] & 160 & 160 \\
+ & PERG & 0.723 & [0.661, 0.781] & 336 & 304 \\
+\bottomrule
+\end{tabular}
+\end{table}

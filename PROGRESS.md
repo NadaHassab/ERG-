@@ -4,7 +4,7 @@
 **Working paper:** *Pathway-Constrained Partial Transfer Across Unpaired Retinal Electrophysiology Protocols*
 **Master plan:** `MASTER_PLAN_PATHWAY_AWARE_SIGNED_OT.md` (authoritative blueprint — 10 phases, 36 sections)
 **Changelog:** `CHANGELOG.md` (release history)
-**Last updated:** 2026-08-11
+**Last updated:** 2026-08-12
 
 > This file is a plain-language log of what is done, what was changed and why,
 > and what the findings mean. When an error appears, read the "Watch list" and
@@ -41,10 +41,10 @@ as independent people.
 | 4 | Signed OT + synthetic simulations (E1, E2) | **DONE** |
 | 5 | Simple classical baselines (E0/E4) + VMD | **DONE** (2026-08-09, §3.26 grid/K-sweep + §3.31 shortcut review; gate: OOF predictions exist, VMD frequency/stability tests pass, shortcut risks reviewed) |
 | 6 | Separate hierarchical neural models | **DONE** — authoritative 5-fold × 3-seed × 2-task run + neural confound gate (§3.42) |
-| 7 | Joint SSL + pathway routing | **RUNNING** — authoritative SSL pretrain (5 folds) + SSL-init fine-tune batch in progress (§3.43) |
-| 8 | Graph controls + label efficiency | **RUNNING** — graph-control ×5 and label-efficiency ×3 batches queued in the stage driver (§3.43) |
-| 9 | Robustness, statistics, interpretation | **RUNNING** — probe batteries queued; acceptance/confound gates done |
-| 10 | Paper + release | NOT STARTED |
+| 7 | Joint SSL + pathway routing | **DONE** — SSL-init 0.614/0.731, no benefit vs from-scratch (§3.43) |
+| 8 | Graph controls + label efficiency | **DONE** — all graph controls ≈ baseline; label-efficiency smooth (§3.43–3.44) |
+| 9 | Robustness, statistics, interpretation | **DONE** — probes 10/10; external 4-domain 0.664/0.719; paired comparison NS (§3.43–3.46) |
+| 10 | Paper + release | **IN PROGRESS** — all experiments complete; assembling tables/figures (§3.47) |
 
 ---
 
@@ -1741,3 +1741,47 @@ comparisons + `artifacts/results/external_v1/` write-up.
 - **Queue status**: `stage_external_runs.sh` still waiting on the
   authoritative stage batch (PID 7304, currently e6_sslinit fold 3);
   e9 arm starts automatically when it exits.
+
+### 3.47 Final experiment status — all phases complete (2026-08-12)
+
+- **Phase 8a (graph controls) — COMPLETE:** all five graph variants
+  (correct/none/full/wrong/random) show no differential effect (LEOP
+  0.644–0.674, PERG 0.721–0.726), none beats separate baseline
+  (0.682/0.742). Clean null result for learned pathway routing.
+
+- **Phase 8b (label efficiency) — COMPLETE:** PERG degrades smoothly
+  (0.742→0.727→0.718→0.604); LEOP non-monotonic at 0.25 (0.682→0.628
+  →0.557→0.601), needs full labels for best performance.
+
+- **Phase 9 (probes) — COMPLETE:** 10/10 batteries; frozen embeddings
+  near-lossless for morphology/domain (AUROC 0.99+) but only moderate
+  for flash intensity (r≈0.56) — consistent with negative transfer.
+
+- **Phase 7b (SSL-init) — COMPLETE:** LEOP 0.614, PERG 0.731; frozen
+  encoder SSL-init does not beat from-scratch separate (LEOP −0.068,
+  PERG −0.011). Clean negative for reference SSL objective.
+
+- **External e9 (4-domain SSL + 30-run supervised ensemble) — COMPLETE:**
+
+  | Model | LEOP AUROC [95% CI] | PERG AUROC [95% CI] |
+  |---|---|---|
+  | 2-domain SSL-init (e7b) | 0.614 [0.522, 0.702] | 0.731 [0.673, 0.790] |
+  | 4-domain SSL-init (e9) | 0.664 [0.569, 0.751] | 0.719 [0.662, 0.777] |
+
+- **Paired comparison (4-domain − 2-domain):**
+
+  | Task | ΔAUROC [95% CI] | p (Holm) |
+  |---|---|---|
+  | LEOP | +0.049 [−0.016, +0.117] | 0.358 |
+  | PERG | −0.012 [−0.039, +0.016] | 0.636 |
+
+  Neither difference significant. Adding external domains (URFU/FLINDERS)
+  to SSL pretraining does not improve or degrade LEOP/PERG classification.
+
+- **Flinders routed calibration — COMPLETE:** fold-4 smoke shows 9
+  held-out FLINDERS components vs 1386 LEOP controls; per-stream KS
+  honestly empty (no protocol overlap on that fold). Descriptive only.
+
+- **Confounds note:** sex-adjusted AUROC shifts ≤0.027 across all
+  experiments; no confounding detected. LEOP sex imbalance (24.5% F)
+  remains a limitation.
