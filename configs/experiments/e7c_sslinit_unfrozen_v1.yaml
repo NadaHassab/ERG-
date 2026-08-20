@@ -1,0 +1,33 @@
+# Phase 7c (new): SSL-init fine-tune with UNFROZEN encoder. The frozen
+# stage-C contract (freeze_encoders: true) is the suspected bottleneck that
+# made SSL-init lose to from-scratch (e7b: LEOP 0.614 / PERG 0.731 vs
+# baseline 0.682/0.742). This experiment keeps the same fold-N SSL
+# checkpoints and the same `correct` routing graph, but leaves the shared
+# encoder trainable during supervised fine-tune. If unfreezing recovers
+# performance, the freezer (not the SSL objective) was the limiting factor.
+name: e7c_sslinit_unfrozen_v1
+method: separate_raw_ot_hierarchical_sslinit_unfrozen_v1
+fold_version: v1
+tasks: [LEOP, PERG]
+leop_cohort: primary_nine_step
+outer_folds: [0, 1, 2, 3, 4]
+seeds: [1001, 2002, 3003]
+epochs: 200
+batch_size: 8
+lr: 0.0001
+weight_decay: 0.0001
+warmup_epochs: 5
+patience: 25
+grad_clip: 1.0
+device: cuda
+max_steps_per_epoch: null
+output_subdir: separate_raw_ot_hierarchical_sslinit_unfrozen_v1
+n_bootstrap_reps: 2000
+bootstrap_seed: 424242
+confidence: 0.95
+init_ssl: artifacts/results/ssl_pretrain_v1/fold0/final.pt
+freeze_encoders: false
+routing_graph: correct
+label_frac: 1.0
+subset_seed: 9001
+resume: false

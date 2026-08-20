@@ -69,6 +69,7 @@ class SeparateTrainingConfig:
     bootstrap_seed: int = 424242
     confidence: float = 0.95
     init_ssl: str | None = None
+    freeze_encoders: bool = True
     routing_graph: str | None = None
     label_frac: float = 1.0
     subset_seed: int = 9001
@@ -253,7 +254,8 @@ def build_stage_model(
     )
     if cfg.init_ssl:
         init_from_ssl(model, cfg.init_ssl)
-        freeze_encoders(model, freeze=True)
+        if cfg.freeze_encoders:
+            freeze_encoders(model, freeze=True)
     return model
 
 
