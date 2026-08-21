@@ -1,0 +1,25 @@
+[unfrozen-resume] ===== fold 0 =====
+LEOP  AUROC=0.6049 [0.3916, 0.8182] n=35 clusters=35
+PERG  AUROC=0.8179 [0.6988, 0.9174] n=62 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_unfrozen_v1/predictions.parquet
+[unfrozen-resume] ===== fold 1 =====
+LEOP  AUROC=0.8222 [0.6443, 0.9867] n=30 clusters=30
+PERG  AUROC=0.7650 [0.6374, 0.8730] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_unfrozen_v1/predictions.parquet
+[unfrozen-resume] ===== fold 2 =====
+LEOP  AUROC=0.6048 [0.3810, 0.8238] n=29 clusters=29
+PERG  AUROC=0.6200 [0.4869, 0.7551] n=71 clusters=61
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_unfrozen_v1/predictions.parquet
+[unfrozen-resume] ===== fold 3 =====
+LEOP  AUROC=0.6833 [0.4917, 0.8708] n=31 clusters=31
+PERG  AUROC=0.7485 [0.6016, 0.8727] n=69 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_unfrozen_v1/predictions.parquet
+[unfrozen-resume] ===== fold 4 =====
+LEOP  AUROC=0.7100 [0.5267, 0.8801] n=35 clusters=35
+PERG  AUROC=0.7446 [0.6209, 0.8587] n=65 clusters=63
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_unfrozen_v1/predictions.parquet
+[unfrozen-resume] ===== summary ensemble =====
+LEOP  AUROC=0.6750 [0.5874, 0.7573] n=160 clusters=160
+PERG  AUROC=0.7243 [0.6640, 0.7824] n=336 clusters=304
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_unfrozen_v1/predictions.parquet
+[unfrozen-resume] DONE

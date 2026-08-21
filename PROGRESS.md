@@ -1785,3 +1785,43 @@ comparisons + `artifacts/results/external_v1/` write-up.
 - **Confounds note:** sex-adjusted AUROC shifts ≤0.027 across all
   experiments; no confounding detected. LEOP sex imbalance (24.5% F)
   remains a limitation.
+
+### 3.48 SSL-init unfrozen encoder (Phase 7c, e7c — 2026-08-21)
+
+- **Motivation:** frozen Stage-C encoder was the suspected bottleneck
+  explaining the negative SSL-init result (e7b LEOP 0.614).  Added
+  `freeze_encoders: bool = True` to `SeparateTrainingConfig`
+  (separate.py:72) so `build_stage_model` now respects
+  `cfg.freeze_encoders` instead of hardcoding `freeze=True` whenever
+  `init_ssl` is set.
+- **Design:** 30-run ensemble (5 folds × 3 seeds × 2 tasks) initialized
+  from the same fold-N 2-domain SSL checkpoints (`ssl_pretrain_v1/
+  foldN/final.pt`, `routing_graph: correct`), but with
+  `freeze_encoders: false` — encoder trains during fine-tune.
+  Per-fold configs (`e7c_sslinit_unfrozen_fold{0..4}_v1.yaml`) avoid
+  the §23.6 leakage bug (fold-N never inits from a checkpoint that saw
+  fold N); summary `e7c_sslinit_unfrozen_v1.yaml` rebuilds the ensemble
+  with `--resume`.
+- **Result (5-fold ensemble):**
+
+  | Model | LEOP AUROC [95% CI] | PERG AUROC [95% CI] |
+  |---|---|---|
+  | separate baseline (e6) | 0.682 [0.589, 0.764] | 0.742 [0.682, 0.798] |
+  | SSL-init frozen (e7b) | 0.614 [0.522, 0.702] | 0.731 [0.673, 0.790] |
+  | **SSL-init unfrozen (e7c)** | **0.675 [0.587, 0.757]** | **0.724 [0.664, 0.782]** |
+
+  Per-fold held-out (e7c) — LEOP: 0.605/0.822/0.605/0.683/0.710;
+  PERG: 0.818/0.765/0.620/0.749/0.745.  Gap vs frozen closes on LEOP
+  (+0.061, from −0.068 below baseline to −0.007); PERG stays flat /
+  slightly lower (−0.018 vs baseline, −0.007 vs frozen).
+
+- **Interpretation:** the frozen contract **was** the bottleneck for
+  LEOP — unfreezing lets SSL-init recover to near the from-scratch
+  baseline.  But SSL-init (even unfrozen) does **not beat** separate
+  training on either task.  The reference SSL objective adds no
+  classification benefit at this scale, whether the encoder is frozen or
+  not.  Extending unfrozen across the other sharing graphs
+  (none/full/wrong/random) would test whether pathway structure matters
+  once the encoder can adapt, but the correct-graph result already
+  says the ceiling is the baseline, so that sweep is not expected to
+  change the headline.

@@ -1,0 +1,5 @@
+[unfrozen] ===== fold 0 =====
+LEOP  AUROC=0.6049 [0.3916, 0.8182] n=35 clusters=35
+PERG  AUROC=0.8179 [0.6988, 0.9174] n=62 clusters=60
+predictions: artifacts/results/separate_raw_ot_hierarchical_sslinit_unfrozen_v1/predictions.parquet
+[unfrozen] ===== fold 1 =====
