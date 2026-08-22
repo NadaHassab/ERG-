@@ -311,31 +311,37 @@ def fig_method_comparison():
     baseline = load_json(RESULTS / "separate_raw_ot_hierarchical_v1" / "metrics.json")
     multitask = load_json(RESULTS / "multitask_v1" / "metrics.json")
     attention = load_json(RESULTS / "attention_erg_v1" / "metrics.json")
+    ssm = load_json(RESULTS / "ssm_erg_v1" / "metrics.json")
 
     methods = [
         "Neural\nsingle-task",
         "Neural\nmulti-task",
         "Attention\nERG",
+        "SSM/LSTM\nERG",
     ]
     leop_vals = [
         baseline["LEOP"]["roc_auc"],
         multitask["LEOP"]["point"],
         attention["LEOP"]["point"],
+        ssm["LEOP"]["point"],
     ]
     leop_ci = [
         (baseline["LEOP"]["roc_auc_ci_low"], baseline["LEOP"]["roc_auc_ci_high"]),
         (multitask["LEOP"]["ci_low"], multitask["LEOP"]["ci_high"]),
         (attention["LEOP"]["ci_low"], attention["LEOP"]["ci_high"]),
+        (ssm["LEOP"]["ci_low"], ssm["LEOP"]["ci_high"]),
     ]
     perg_vals = [
         baseline["PERG"]["roc_auc"],
         multitask["PERG"]["point"],
         attention["PERG"]["point"],
+        ssm["PERG"]["point"],
     ]
     perg_ci = [
         (baseline["PERG"]["roc_auc_ci_low"], baseline["PERG"]["roc_auc_ci_high"]),
         (multitask["PERG"]["ci_low"], multitask["PERG"]["ci_high"]),
         (attention["PERG"]["ci_low"], attention["PERG"]["ci_high"]),
+        (ssm["PERG"]["ci_low"], ssm["PERG"]["ci_high"]),
     ]
 
     fig, ax = plt.subplots(figsize=(8, 5))

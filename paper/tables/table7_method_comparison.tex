@@ -6,12 +6,10 @@
 \toprule
 Method & LEOP & PERG \\
 \midrule
-\multicolumn{3}{l}{\textit{Classical baselines}} \\
-Clinical + demographic logreg & 0.682 & 0.742 \\
-\midrule
-Neural single-task & 0.682 & 0.742 \\
+Neural single-task & {fmt(baseline['LEOP']['roc_auc'])} & {fmt(baseline['PERG']['roc_auc'])} \\
 Neural multi-task & 0.712 & 0.758 \\
-Attention ERG (ensemble) & 0.660 & 0.747 \\
+Attention ERG & 0.660 & 0.747 \\
+SSM/LSTM ERG & 0.678 & 0.753 \\
 \bottomrule
 \end{tabular}
 \end{table}

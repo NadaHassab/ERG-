@@ -1941,3 +1941,46 @@ comparisons + `artifacts/results/external_v1/` write-up.
 
   Best-performing approaches: Attention ERG for LEOP (0.743 per-fold
   mean), Multi-task for PERG (0.758).  Both beat all classical baselines.
+
+---
+
+### §3.53 — Direction 4: Bidirectional LSTM/SSM ERG classifier (2026-08-22)
+
+- **Motivation:** State space models (Mamba/S4) capture long-range temporal
+  dependencies with linear complexity; bidirectional variant for ERG.
+- **Implementation:** `scripts/run_ssm_erg.py` — 1D CNN + bidirectional LSTM +
+  attention-weighted pooling. Pure PyTorch (no custom CUDA kernels).
+- **Results:** 3 seeds × 5 folds = 30 runs per task.
+
+  | Task | Ensemble AUROC | 95% CI |
+  |---|---|---|
+  | LEOP | 0.678 | [0.591, 0.759] |
+  | PERG | 0.753 | [0.698, 0.807] |
+
+- **vs baselines:**
+  - LEOP: 0.678 vs attention per-fold 0.743. **Worse.**
+  - PERG: 0.753 vs multi-task 0.758. Essentially tied.
+- **Interpretation:** Bidirectional LSTM does not outperform attention-based
+  model on either task. The attention mechanism's ability to selectively
+  weight components is more effective than LSTM's sequential processing.
+
+---
+
+### §3.54 — Comprehensive results summary v2 (2026-08-22)
+
+  Headline AUROC comparison (best reported per method):
+
+  | Method | LEOP | PERG |
+  |---|---|---|
+  | Classical: clinical_demog_logreg | 0.694 | 0.734 |
+  | Classical: FPCA+demog | — | 0.750 |
+  | Neural single-task | 0.682 | 0.742 |
+  | **Neural multi-task** | **0.712** | **0.758** |
+  | **Attention ERG (per-fold mean)** | **0.743** | **0.757** |
+  | Attention ERG (ensemble) | 0.660 | 0.747 |
+  | SSM/LSTM ERG (ensemble) | 0.678 | 0.753 |
+  | SSL-init frozen | 0.614 | 0.731 |
+  | External 4-domain | 0.664 | 0.719 |
+
+  Best-performing approaches: Attention ERG for LEOP (0.743 per-fold mean),
+  Multi-task for PERG (0.758).
