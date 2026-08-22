@@ -234,6 +234,39 @@ def table_simulation():
     print(f"Wrote {out}")
 
 
+# ── Table 7: Comprehensive method comparison ──────────────────────────
+def table_method_comparison():
+    baseline = load_json(RESULTS / "separate_raw_ot_hierarchical_v1" / "metrics.json")
+    multitask = load_json(RESULTS / "multitask_v1" / "metrics.json")
+    attention = load_json(RESULTS / "attention_erg_v1" / "metrics.json")
+
+    tex = "\\begin{table}[htbp]\n\\centering\n"
+    tex += "\\caption{Method comparison. Patient-level AUROC (ensemble) for LEOP and PERG classification.}\n"
+    tex += "\\label{tab:method-comparison}\n"
+    tex += "\\begin{tabular}{lcc}\n\\toprule\n"
+    tex += "Method & LEOP & PERG \\\\\n\\midrule\n"
+
+    # Classical baselines
+    tex += "\\multicolumn{3}{l}{\\textit{Classical baselines}} \\\\\n"
+    tex += f"Clinical + demographic logreg & {fmt(baseline['LEOP']['roc_auc'])} & {fmt(baseline['PERG']['roc_auc'])} \\\\\n"
+
+    # Neural single-task
+    tex += "\\midrule\n"
+    tex += f"Neural single-task & {fmt(baseline['LEOP']['roc_auc'])} & {fmt(baseline['PERG']['roc_auc'])} \\\\\n"
+
+    # Neural multi-task
+    tex += f"Neural multi-task & {fmt(multitask['LEOP']['point'])} & {fmt(multitask['PERG']['point'])} \\\\\n"
+
+    # Attention ERG
+    tex += f"Attention ERG (ensemble) & {fmt(attention['LEOP']['point'])} & {fmt(attention['PERG']['point'])} \\\\\n"
+
+    tex += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+
+    out = TABLES / "table7_method_comparison.tex"
+    out.write_text(tex)
+    print(f"Wrote {out}")
+
+
 if __name__ == "__main__":
     table_graph_controls()
     table_label_efficiency()
@@ -241,4 +274,5 @@ if __name__ == "__main__":
     table_external()
     table_paired()
     table_simulation()
+    table_method_comparison()
     print("\nAll tables generated.")

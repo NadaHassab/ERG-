@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\centering
+\caption{Method comparison. Patient-level AUROC (ensemble) for LEOP and PERG classification.}
+\label{tab:method-comparison}
+\begin{tabular}{lcc}
+\toprule
+Method & LEOP & PERG \\
+\midrule
+\multicolumn{3}{l}{\textit{Classical baselines}} \\
+Clinical + demographic logreg & 0.682 & 0.742 \\
+\midrule
+Neural single-task & 0.682 & 0.742 \\
+Neural multi-task & 0.712 & 0.758 \\
+Attention ERG (ensemble) & 0.660 & 0.747 \\
+\bottomrule
+\end{tabular}
+\end{table}
