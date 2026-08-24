@@ -118,13 +118,13 @@ class AttentionERGClassifier(nn.Module):
 
 
 # ── Training ──────────────────────────────────────────────────────────────
-def train_one_task(model, train_bags, val_bags, task, seed, device="cuda"):
+def train_one_task(model, train_bags, val_bags, task, seed, device="cuda", lr=1e-4):
     model.to(device)
     sampler = BagSampler(train_bags, folds={b.outer_fold for b in train_bags},
                          batch_size=8, seed=seed)
     labels = np.asarray([b.target_binary for b in sampler.bags], dtype=float)
     criterion = FoldWeightedBCE(positive_class_weight(labels))
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
     steps_per_epoch = max(1, len(sampler.bags) // 8)
     total = 200 * steps_per_epoch

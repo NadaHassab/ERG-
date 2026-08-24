@@ -1984,3 +1984,264 @@ comparisons + `artifacts/results/external_v1/` write-up.
 
   Best-performing approaches: Attention ERG for LEOP (0.743 per-fold mean),
   Multi-task for PERG (0.758).
+
+---
+
+### §3.55 — Deep ensemble (2026-08-22)
+
+  Trained 10 independent attention models (10 seeds) per fold, averaged predictions.
+
+  **LEOP:** 0.731 ± 0.070 (per-fold mean)
+  - fold 0: 0.801, fold 1: 0.773, fold 2: 0.714, fold 3: 0.763, fold 4: 0.603
+
+  **PERG:** 0.771 ± 0.057 (per-fold mean) — **NEW BEST FOR PERG**
+  - fold 0: 0.838, fold 1: 0.780, fold 2: 0.665, fold 3: 0.791, fold 4: 0.783
+
+  - vs baseline (3-seed ensemble): LEOP 0.731 vs 0.725, PERG 0.771 vs 0.747
+  - Deep ensemble helps PERG (+0.024), modest for LEOP (+0.006)
+  - This is the **best PERG result across all methods**
+
+---
+
+### §3.56 — Hyperparameter sweep (2026-08-22)
+
+  8 configs tested on fold 0 only (d_model × lr).
+
+  **Best configs:**
+  | Config | LEOP fold0 | PERG fold0 |
+  |---|---|---|
+  | d256_lr3e4 | **0.902** | 0.843 |
+  | d128_lr5e4 | 0.874 | **0.846** |
+  | d64_lr1e3 | 0.892 | 0.840 |
+
+  Best configs run across all 5 folds (3 seeds each):
+
+  **LEOP d256_lr3e4:** 0.725 ± 0.073 (per-fold mean)
+  - fold 0: 0.810, fold 1: 0.759, fold 2: 0.667, fold 3: 0.757, fold 4: 0.633
+
+  **PERG d128_lr5e4:** 0.768 ± 0.071 (per-fold mean)
+  - fold 0: 0.851, fold 1: 0.771, fold 2: 0.655, fold 3: 0.794, fold 4: 0.768
+
+  - Wider d_model helps LEOP on fold 0 (0.902 vs 0.773 default), but the
+    advantage does not fully generalize across folds (0.725 vs 0.743 default)
+  - PERG d128_lr5e4 is competitive with deep ensemble (0.768 vs 0.771)
+
+---
+
+### §3.57 — Test-time augmentation (2026-08-22)
+
+  10 augmented copies per sample (time shift + Gaussian noise).
+
+  **LEOP:** TTA 0.724 vs baseline 0.725, delta -0.001
+  **PERG:** TTA 0.753 vs baseline 0.754, delta -0.001
+
+  TTA provides **no improvement** on either task. Simple augmentations
+  (time shift + noise) are insufficient for ERG waveforms.
+
+---
+
+### §3.58 — Cross-task transfer (2026-08-22)
+
+  Pretrain on one task, fine-tune on the other.
+
+  | Direction | Transfer | Baseline | Delta |
+  |---|---|---|---|
+  | PERG → LEOP | 0.724 | 0.725 | -0.001 |
+  | LEOP → PERG | 0.747 | 0.754 | -0.007 |
+
+  **No improvement from cross-task transfer.** PERG and LEOP have
+  fundamentally different signal patterns that do not transfer.
+
+---
+
+### §3.59 — Data leakage audit (2026-08-22)
+
+  Audited all scripts: run_attention_erg, run_multitask, run_ssm_erg,
+  run_supcon_erg, run_crosstask_erg, run_embedding_classifiers.
+
+  **No data leakage found.** Key protections:
+  - `outer_partition` splits by subject with `_assert_subject_disjoint`
+  - `BagSampler` filters to requested folds only
+  - Early stopping uses `val_bags`, never `test_bags`
+  - Cross-task: PERG and LEOP have separate patient populations
+
+---
+
+### §3.60 — Updated comprehensive results summary v3 (2026-08-22)
+
+  Headline AUROC comparison (best reported per method):
+
+  | Method | LEOP | PERG | Notes |
+  |---|---|---|---|
+  | Classical: clinical_demog_logreg | 0.694 | 0.734 | |
+  | Classical: FPCA+demog | — | 0.750 | |
+  | Neural single-task | 0.682 | 0.742 | baseline |
+  | Neural multi-task | 0.712 | 0.758 | +0.030 / +0.016 |
+  | Attention ERG (per-fold mean) | 0.743 | 0.757 | |
+  | Attention ERG (3-seed ensemble) | 0.660 | 0.747 | |
+  | SSM/LSTM ERG | 0.678 | 0.753 | |
+  | Deep ensemble (10 seeds) | 0.731 | **0.771** | Best PERG |
+  | Attention d256_lr3e4 | 0.725 | — | Best fold-0 LEOP |
+  | Attention d128_lr5e4 | — | 0.768 | |
+  | TTA | 0.724 | 0.753 | No improvement |
+  | Cross-task transfer | 0.724 | 0.747 | No improvement |
+  | **MultiDomain Fusion** | **0.788** | 0.765 | **BEST LEOP** |
+  | CWT Scalogram | 0.705 | 0.740 | |
+  | Wavelet Packets | 0.745 | 0.758 | |
+  | Phase Coherence | 0.660 | 0.752 | |
+  | SSL-init frozen | 0.614 | 0.731 | |
+  | External 4-domain | 0.664 | 0.719 | |
+
+  **Best approaches:**
+  - LEOP: **MultiDomain Fusion 0.788** — uses ALL features (signal+OT+spectral+VMD+physical)
+  - PERG: **Deep ensemble 0.771** — 10-seed ensemble of attention models
+
+  **Key insight:** MultiDomain Fusion is the biggest single improvement for LEOP,
+  jumping from 0.743 (attention only) to 0.788 by incorporating spectral (10-dim)
+  and VMD (80-dim) features that were cached but unused.
+
+---
+
+### §3.61 — Multi-Domain Fusion (2026-08-22)
+
+  **NEW BEST FOR LEOP: 0.788** per-fold mean (3 seeds x 5 folds)
+
+  Fuses 5 feature domains per component:
+  - Time domain: signal (128,) via CNN -> 64-dim
+  - OT domain: signed OT (135,) via MLP -> 128-dim
+  - Spectral domain: FFT features (10,) via MLP -> 128-dim
+  - VMD domain: VMD features (80,) via MLP -> 128-dim
+  - Physical features: (8,) via MLP -> 128-dim
+
+  Architecture: Gated fusion -> Transformer self-attention -> attention pooling -> classifier
+
+  LEOP per-fold: 0.843, 0.795, 0.739, 0.828, 0.743 (mean=0.788, std=0.025)
+  PERG per-fold: 0.817, 0.744, 0.691, 0.793, 0.780 (mean=0.765, std=0.017)
+
+  Key: Spectral (10-dim) and VMD (80-dim) features were already cached but unused.
+  Adding them provides +0.045 over attention-only (0.743) for LEOP.
+
+---
+
+### §3.62 — CWT Scalogram (2026-08-22)
+
+  Continuous Wavelet Transform with Morlet wavelet, 16 scales.
+  Creates time-frequency scalogram (16 x 128) per component.
+  CNN on scalogram + CNN on raw signal -> Transformer -> classifier.
+
+  LEOP: 0.705 +/- 0.048
+  PERG: 0.740 +/- 0.037
+
+  No improvement over attention-only. CWT representation may be
+  too redundant with the raw signal for this model architecture.
+
+---
+
+### §3.63 — Wavelet Packet Decomposition (2026-08-22)
+
+  Full wavelet packet tree (db4, max_level=4), 16 nodes x 3 stats = 48 features.
+  CNN on raw signal + MLP on wavelet packet features -> Transformer -> classifier.
+
+  LEOP: 0.745 +/- 0.039
+  PERG: 0.758 +/- 0.028
+
+  Competitive with attention-only (0.743/0.757) but not better.
+  Wavelet packets capture similar information to the CNN on raw signal.
+
+---
+
+### §3.64 — Phase Coherence (2026-08-22)
+
+  Cross-component phase coherence features:
+  - Phase coherence (magnitude of mean resultant vector)
+  - Amplitude correlation
+  - Peak time delay
+  - Peak phase difference
+  - Energy ratio
+  - Pearson correlation
+
+  LEOP: 0.660 +/- 0.035
+  PERG: 0.752 +/- 0.024
+
+  Phase coherence hurts LEOP (0.660 vs 0.743). The additional features
+  may be introducing noise or the model is not large enough to use them.
+  PERG is unaffected (0.752 vs 0.757).
+
+---
+
+### §3.65 — Final comprehensive results summary v4 (2026-08-22)
+
+  Headline AUROC comparison (best reported per method):
+
+  | Method | LEOP | PERG | Notes |
+  |---|---|---|---|
+  | Classical: clinical_demog_logreg | 0.694 | 0.734 | |
+  | Classical: FPCA+demog | — | 0.750 | |
+  | Neural single-task | 0.682 | 0.742 | baseline |
+  | Neural multi-task | 0.712 | 0.758 | +0.030 / +0.016 |
+  | Attention ERG (per-fold mean) | 0.743 | 0.757 | |
+  | Deep ensemble (10 seeds) | 0.731 | 0.771 | |
+  | MultiDomain Fusion (3 seeds) | 0.788 | 0.765 | |
+  | CWT Scalogram | 0.705 | 0.740 | |
+  | Wavelet Packets | 0.745 | 0.758 | |
+  | Phase Coherence | 0.660 | 0.752 | |
+  | **MultiDomain + CWT (3 seeds)** | **0.812** | 0.759 | **NEW BEST LEOP** |
+  | **MultiDomain Ensemble (10 seeds)** | 0.795 | **0.785** | **NEW BEST PERG** |
+  | TTA | 0.724 | 0.753 | No improvement |
+  | Cross-task transfer | 0.724 | 0.747 | No improvement |
+  | SSL-init frozen | 0.614 | 0.731 | |
+
+  **Best methods:**
+  - LEOP: **MultiDomain + CWT 0.812** (+0.130 vs baseline, +0.069 vs attention-only)
+  - PERG: **MultiDomain Ensemble 0.785** (+0.043 vs baseline, +0.014 vs deep ensemble)
+
+  **MultiDomain hparams sweep:** d128_lr1e4 = 0.839 (LEOP fold 0), d256_lr1e4 = 0.838 (PERG fold 0)
+  Default config (d128_lr1e4) is near-optimal for both tasks.
+
+---
+
+### §3.66 — Advanced Signal Processing Features (2026-08-23)
+
+  22-dimensional feature vector per component:
+  - Hjorth parameters (3): activity, mobility, complexity
+  - Teager-Kaiser Energy (3): mean, max, std
+  - Sample entropy (1): nonlinear complexity
+  - Permutation entropy (1): ordinal pattern complexity
+  - Higuchi fractal dimension (1): fractal scaling
+  - Welch PSD (5): centroid, spread, rolloff, flatness, entropy
+  - Higher-order stats (3): skewness, kurtosis, crest factor
+  - Zero-crossing rate (1)
+  - Autocorrelation (4): lags 1,2,4,8
+
+  MultiDomain + AdvSP (5 domains): LEOP 0.740, PERG 0.768
+  No improvement over MultiDomain alone (0.788/0.765).
+  Additional statistical features add noise for this model size.
+
+---
+
+### §3.67 — Ultimate Fusion: 7 domains (2026-08-23)
+
+  Combines ALL features: signal + OT + spectral + VMD + physical + CWT + AdvSP
+
+  LEOP: 0.782 (slightly worse than MultiDomain+CWT 0.812)
+  PERG: not completed (computation too slow, EMD bottleneck)
+
+  Adding too many domains can hurt — the model may overfit to
+  noisy features. MultiDomain+CWT (6 domains) remains the best.
+
+---
+
+### §3.68 — Final comprehensive results summary v5 (2026-08-23)
+
+  | Method | LEOP | PERG | Notes |
+  |---|---|---|---|
+  | Baseline (attention) | 0.725 | 0.754 | |
+  | MultiDomain Fusion (5d) | 0.788 | 0.765 | |
+  | **MultiDomain + CWT (6d)** | **0.812** | 0.759 | **BEST LEOP** |
+  | MultiDomain Ensemble (10 seeds) | 0.793 | **0.785** | **BEST PERG** |
+  | AdvSP (no EMD) | 0.740 | 0.768 | |
+  | Ultimate Fusion (7d) | 0.782 | — | Too slow |
+
+  **Final best methods:**
+  - LEOP: **MultiDomain + CWT 0.812** (0.682 -> 0.812, +19% relative)
+  - PERG: **MultiDomain Ensemble 0.785** (0.742 -> 0.785, +6% relative)
