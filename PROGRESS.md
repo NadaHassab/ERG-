@@ -4,7 +4,7 @@
 **Working paper:** *Pathway-Constrained Partial Transfer Across Unpaired Retinal Electrophysiology Protocols*
 **Master plan:** `MASTER_PLAN_PATHWAY_AWARE_SIGNED_OT.md` (authoritative blueprint — 10 phases, 36 sections)
 **Changelog:** `CHANGELOG.md` (release history)
-**Last updated:** 2026-08-12
+**Last updated:** 2026-08-24
 
 > This file is a plain-language log of what is done, what was changed and why,
 > and what the findings mean. When an error appears, read the "Watch list" and
@@ -2242,6 +2242,38 @@ comparisons + `artifacts/results/external_v1/` write-up.
   | AdvSP (no EMD) | 0.740 | 0.768 | |
   | Ultimate Fusion (7d) | 0.782 | — | Too slow |
 
-  **Final best methods:**
-  - LEOP: **MultiDomain + CWT 0.812** (0.682 -> 0.812, +19% relative)
-  - PERG: **MultiDomain Ensemble 0.785** (0.742 -> 0.785, +6% relative)
+   **Final best methods:**
+   - LEOP: **MultiDomain + CWT 0.812** (0.682 -> 0.812, +19% relative)
+   - PERG: **MultiDomain Ensemble 0.785** (0.742 -> 0.785, +6% relative)
+
+---
+
+### §3.69 — Literature-inspired augmentations & bio signal domains (2026-08-24)
+
+**Motivation:** Recent ERG papers report +15% from CGAN synthetic waveforms (Kulyabin 2025), STFT+ViT 81% acc (Albasu 2024), VFCDM sens 0.85/spec 0.78, ERG-Graph BA 0.91, and multiscale-entropy complexity-loss. Tested whether these transfer to our 128-point canonical pipeline. All runs 5-fold × 3-seed × 2-task (30 runs/method) with `outer_partition` subject-disjoint; no leakage.
+
+**Methods & results (per-fold mean, 3 seeds):**
+
+| Method | LEOP | PERG | Details |
+|---|---|---|---|
+| CGAN (cond. GAN, 200 synth/class) | 0.784±0.057 | 0.778±0.022 | Vanilla GAN, nearest-real OT/physical borrowing, cap 100/class, 2× synth/real. |
+| WGAN-GP | — | — | Losses exploded to 10⁹, unstable, abandoned. |
+| Mixup α=0.4 | 0.767±0.024 | 0.727±0.023 | Beta-interpolated waveforms; hurts both tasks. |
+| Focal Loss γ=2 | 0.811±0.032 | 0.763±0.018 | ≈baseline LEOP, hurts PERG. |
+| CutMix p=0.5 | 0.802±0.031 | 0.767±0.017 | Cut contiguous segment; hurts. |
+| Focal+CutMix | 0.799±0.096 | — | Hurts. |
+| UMAP+SVM (RBF) | 0.681±0.030 | 0.699±0.028 | 20-D UMAP + StandardScaler + SVC; far below DL. |
+| GSP (k-NN graph, eigenvalue) | — | — | OOM on 32×32 Laplacian (128-point graph). |
+| DANN (GRL, λ=1.0) | 0.739±0.059 | 0.730±0.038 | Domain-invariant LEOP↔PERG; erases task-specific features. |
+| **Bio 9-domain (STFT+FrFT+OP)** | **0.797±0.032** | **0.761±0.021** | 6 baseline + STFT (Hamming 16, log-mean), FrFT (orders 0.2-1.0, 12-D log-energy), OP (butter 75-300Hz, 8-D ratio/peak/rms/zc). Gated fusion 9→Transformer. LEOP −0.015 vs 0.812, PERG +0.002. |
+| Bio STFT-only (7d) | 0.788±0.049 | 0.763±0.014 | |
+| Bio FrFT-only (7d) | 0.800±0.045 | 0.765±0.019 | Best single bio domain (FrFT) still −0.012 LEOP. |
+| Bio OP-only (7d) | 0.796±0.032 | 0.765±0.021 | |
+
+Scripts: `run_cgan_erg.py`+`run_cgan_train.py`, `run_wgan_gp.py`, `run_mixup.py`, `run_focal_cutmix.py`, `run_umap_erg.py`, `run_gsp_erg.py`, `run_dann.py` (wraps `MultiDomainCWT` encoder + `GradientReversal`), `run_bio_extended.py` (FS=1000Hz, FrFT via O(N²) kernel), `run_bio_ablations.py`. Artifacts: `cgan_aug_v1`, `cgan_aug_trained_v1`, `mixup_v1`, `focal_cutmix_v1/*`, `umap_v1`, `dann_v1`, `bio_extended_v1`, `bio_ablate_{stft,frft,op}_v1`.
+
+**Interpretation:** None beat 6-domain baseline. Extra time-frequency domains (CWT already captures t-f structure; STFT/FrFT/OP are redundant) and waveform augmentations add variance on n=160/336 bags; gated fusion cannot rescue under-parameterized noise. DANN confirms LEOP flash-ERG vs PERG pattern-ERG have fundamentally different manifolds — forcing invariance hurts. Literature gains do not transfer at this scale/protocol. Negative-result controls for paper.
+
+**Headline unchanged:**
+- LEOP: **MultiDomain+CWT 0.812** [0.876,0.787,0.751,0.903,0.744] per-fold
+- PERG: **MultiDomain Ensemble 0.785** [0.810,0.741,0.701,0.779,0.780] per-fold
