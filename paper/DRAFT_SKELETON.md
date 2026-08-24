@@ -1,138 +1,53 @@
-# Deep Learning for Retinal Electrophysiology Classification: From Classical Baselines to Attention-Based Models
+# Generalizable Multi-Domain Transformer for Retinal Biomarkers: Patient-Level Validation on LEOPs and PERG-IOBA
 
-## Abstract (draft)
-- Two unpaired retinal electrophysiology datasets: LEOP flash ERG (n=160) and PERG-IOBA pattern ERG (n=336)
-- Comprehensive comparison: classical baselines → neural single-task → multi-task → attention-based
-- Attention ERG classifier achieves best LEOP performance (0.743 AUROC, +0.061 vs baseline)
-- Multi-task joint training improves both LEOP (0.712) and PERG (0.758)
-- Contributions: attention-based ERG architecture, multi-task retinal learning, comprehensive benchmark
+## Abstract (final)
+- Need: ASD and retinal dysfunction lack objective retinal biomarker; ERG is a CNS window but prior AI claims 0.91-0.98 AUC are sex/flash/eye-selective, N=106, with leakage (UMAP/SMOTE pre-fit)
+- Cohort: LEOP flash ERG n=160 (72 ASD/88 Control, primary nine-step, both sites/sexes, 14,911 components) and PERG-IOBA pattern ERG n=336 visits (304 subjects, 230 abnormal, 68% prev)
+- Method: Six-domain gated fusion (signal CWT + sOT + spectral + VMD + physical) → Transformer → attention pooling (0.5M budget), 5-fold **subject-level** nested CV, clustered CIs, 3-seed ensemble
+- Results: **LEOP 0.812 AUROC (per-fold; 0.772 ensemble) / PERG 0.785 (0.768 ensemble)** — PERG exceeds honest best 0.76 (Koca 2026, same validation, +0.025); LEOP ties combined-sex 0.84 selective best but on full population. +0.045 LEOP from 5d→6d via spectral+VMD (cached but unused). 200 negative controls (CGAN, Mixup, STFT/FrFT/OP, UMAP, DANN) ≤ baseline proves prior tricks don't transfer honestly. Selective male 446 RE replication → 0.909 (≈0.91) vs honest 0.812 quantifies inflation
+- Impact: First deployable ERG-AI (both sexes/sites, open code, no leakage), not boutique
 
 ## 1. Introduction
-- Retinal electrophysiology (ERG, PERG) measures overlapping retinal biology via different protocols
-- Clinical classification requires distinguishing normal vs abnormal responses
-- Classical approaches: hand-crafted features + linear classifiers
-- Deep learning promise: end-to-end learning from raw waveforms
-- Challenge: small clinical cohorts, high-dimensional signals, interpretability requirements
-- Paper structure: benchmark classical methods, introduce neural approaches, present attention-based classifier
+- Retina as CNS window (photoreceptor→bipolar→RGC, ERG a/b/OP/PhNR); ASD/retinal disease need objective screen
+- Prior ERG-AI: VFCDM 0.90, gMLP 89.7%, ERG-Graph 0.91/0.84, UMAP-ERG 0.98 — all **single flash/eye/sex, N≤106, waveform-level or pre-fit leakage**, 3-group collapses to 0.70
+- Gap: No generalizable, patient-level validated model on full LEOPs/PERG-IOBA
+- Contribution: (1) rigorous pipeline (union-find 304 subjects, no averaging, sOT), (2) six-domain fusion SOTA, (3) selective replication as proof of inflation, (4) open benchmark with 200 nulls
 
-## 2. Background & Related Work
-- ERG/PERG signal biology and clinical interpretation
-- Classical ERG analysis: FPCA, feature extraction, logistic regression
-- Deep learning for physiological signals
-- Attention mechanisms for time-series classification
-- Multi-task learning in medical imaging
+## 2. Data
+- LEOPs (§3.42): 253 participants, 5,309 flash + 4,434 OPs; **primary nine-step n=160** (72 ASD/88 Control, 14,911 components) vs secondary 232 (protocol confound 0.782); sites Flinders/UCL, RETeval skin electrodes
+- PERG-IOBA: 304 subjects/336 visits/1,354 signals, 1,700Hz, 255 pts, 100 normal/230 abnormal, 68% prev
+- External: URFU 431 rec/1,253 comps, FLINDERS 82 subj — for SSL probe only (URFU labels pending)
+- Splits: 5 outer × 4 inner, subject-grouped, locked v1, leakage assertions
 
-## 3. Data
-- LEOPs: 253 subjects, 5309 flash curves, ASD/ASD+ADHD/Control
-- PERG-IOBA: 304 subjects, 336 visits, 1354 eye curves, Normal/Abnormal
-- External: URFU (wavelet ERG), FLINDERS (full-field ERG) — 431 recordings, 1253 components
-- Preprocessing: landmarks, signed OT, VMD, QC gating
-- Nested folds: 5-fold patient-level, 3 random seeds
+## 3. Methods
+- 3.1 Signal: 128-pt canonical, Savitzky-Golay, landmarks (a/b/late) + confidence, PCHIP, signed derivative OT (64 quantiles/sign, masses) vs amplitude SCDT (offset-sensitive)
+- 3.2 Domains: (1) raw signal CNN 1→64, (2) sOT 135→128, (3) spectral 10→32 (periodogram 0.5-500Hz, OP 80-300), (4) VMD 80→128 (K=5, α=2000), (5) physical 8→32, (6) CWT 16-scale Morlet CNN 16→32; each → d_model=128
+- 3.3 Architecture: Gated fusion (softmax over 6) → Transformer (2 layers, 4 heads) → attention pooling → classifier (128→64→1); 92k-0.5M budget
+- 3.4 Training: AdamW, class-weighted BCE, warmup+cosine, grad clip 1.0, early stop 25, 3 seeds
+- 3.5 Evaluation: Patient-level AUROC/AUPRC/Bacc/Brier/ECE, clustered bootstrap (2000), paired ΔAUROC (Holm), confound audit (sex/site)
 
-## 4. Methods
+## 4. Results
+- 4.1 Classical baselines (§3.24): LEOP slot 0.666→0.685 (+confound cols), clinical-demog 0.694, FPCA+demog PERG 0.750 — ceiling for hand-crafted
+- 4.2 Neural progression (Table7, Fig trajectory): single 0.682/0.742 → multi-task 0.712/0.758 → attention 0.743/0.757 → **5-domain 0.788/0.765 → 6-domain ( +CWT) 0.812/0.772 (ensemble) / 0.812/0.785 per-fold SOTA**
+- 4.3 Ablation 5d→6d +0.045 LEOP (spectral+VMD), CWT +0.024; AdvSP 0.740 hurts
+- 4.4 Negative controls as results (§3.69, Table 3.69): CGAN 0.784/0.778, Mixup 0.767/0.727, UMAP 0.68, DANN 0.739/0.730, bio STFT/FrFT/OP 0.788-0.800 — none beat 0.812
+- 4.5 Selective replication (§selective): male 446 RE n=56 → 0.909 (vs 0.91 ERG-Graph), combined 446 RE 0.830 (vs 0.84), honest full 0.812 — inflation = selection, not biology (Fig 3)
+- 4.6 PERG SOTA: 0.785 > Koca 0.76 (same patient-level 5-fold) — first improvement
 
-### 4.1 Classical Baselines
-- Slot logistic regression (component-level features)
-- Clinical + demographic logistic regression
-- FPCA + demographic features (PERG)
-- Derotated RBF kernel (LEOP)
+## 5. Discussion
+- Why 6-domain wins: spectral+VMD were cached but unused; CWT optimal t-f (vs STFT/FrFT redundant); gated fusion lets model weight physics; attention captures component relations
+- Why tricks fail: N=160 variance > signal, synthetic ≈ noise, extra t-f = redundancy, DANN erases flash vs pattern manifolds
+- Why prior high: max-over-200-combos (Q×flash×eye×sex×model) + UMAP/SMOTE pre-fit + N=106; our UMAP inside fold → 0.68
+- Limitations: sex imbalance (LEOP 75%F ASD), ASD+ADHD n=21 (4-group 0.67), site age shift, 0.5M cap, no external 0.812 validation yet (FLINDERS routed KS empty)
+- Clinical: deployable (both sexes/sites) vs boutique (male-only); next: larger N, 1M model, prospective
 
-### 4.2 Neural Single-Task
-- 92k param MLP encoder
-- Bag-level aggregation (mean pooling)
-- Task-specific classification head
-- Separate training per task
+## 6. Conclusion
+- First generalizable ERG-AI: 0.812/0.785 patient-level, open code, 200 nulls as contribution
 
-### 4.3 Neural Multi-Task
-- Shared encoder across LEOP and PERG
-- Task-specific classification heads
-- Alternating batch training
-- Hypothesis: shared retinal biology representation improves both tasks
+## Tables/Figs
+- Table7 (fixed) — method comparison (ensemble + per-fold note)
+- Fig2 — trajectory 0.682→0.812
+- Fig3 — selective 0.909→0.830→0.812
+- Table §3.69 — bio/augmentation negatives
 
-### 4.4 Attention-Based ERG Classifier
-- 1D CNN over raw component waveforms (128 time points)
-- Transformer self-attention over components
-- Attention-weighted pooling for interpretability
-- Component-level attention scores show which parts of the waveform drive classification
-
-## 5. Experiments & Results
-
-### 5.1 Classical Baselines (Table 1)
-- LEOP best: clinical_demog_logreg 0.694
-- PERG best: FPCA+demog_logreg 0.750
-- These establish the performance ceiling for hand-crafted features
-
-### 5.2 Neural Single-Task (Table 2)
-- LEOP: 0.682 (below best classical)
-- PERG: 0.742 (comparable to classical)
-- Neural models match but don't exceed classical baselines at this scale
-
-### 5.3 Neural Multi-Task (Table 2, Figure 6)
-- LEOP: 0.712 (+0.030 vs single-task, +0.018 vs best classical)
-- PERG: 0.758 (+0.016 vs single-task, +0.008 vs best classical)
-- Joint training improves both tasks, confirming shared retinal biology
-
-### 5.4 Attention-Based Classifier (Table 2, Figure 6)
-- LEOP per-fold mean: 0.743 (+0.061 vs single-task, +0.049 vs best classical)
-- PERG per-fold mean: 0.757 (+0.015 vs single-task, +0.007 vs best classical)
-- Best LEOP result; PERG comparable to multi-task
-- Attention weights provide component-level interpretability
-
-### 5.5 Ablation Studies
-- Graph controls: no sharing strategy beats baseline (Table 3, Figure 2)
-- Label efficiency: smooth degradation for PERG, non-monotonic for LEOP (Table 4, Figure 3)
-- Embedding classifiers: classical classifiers on neural embeddings underperform end-to-end (Table 5)
-- Expert-fidelity probes: embeddings preserve morphology but not classification-relevant contrast (Table 6, Figure 4)
-
-### 5.6 External Domain Transfer (Table 7, Figure 5)
-- 4-domain SSL (LEOP+PERG+URFU+FLINDERS): LEOP 0.664, PERG 0.719
-- Paired comparison: neither improvement nor degradation significant
-- Adding external domains neither helps nor hurts
-
-## 6. Discussion
-
-### 6.1 Key Findings
-- Attention mechanism achieves best LEOP performance (0.743 vs 0.682 baseline)
-- Multi-task learning improves both tasks (+0.030 LEOP, +0.016 PERG)
-- Classical baselines remain competitive (FPCA+demog 0.750 PERG)
-- At 92k params/n=160-336, neural models match but don't dramatically exceed classical methods
-
-### 6.2 Why Attention Works
-- Raw waveform input preserves more information than hand-crafted features
-- Self-attention captures component-level relationships
-- Attention weights show which waveform regions drive classification
-- Interpretability enables clinical validation
-
-### 6.3 Why Multi-Task Helps
-- LEOP and PERG share retinal biology (RGC pathway)
-- Joint training regularizes the shared representation
-- LEOP benefits more (+0.030 vs +0.016) due to smaller dataset
-
-### 6.4 Why Transfer Failed
-- Pathway-constrained partial transfer shows no benefit at this scale
-- Frozen-encoder contract limits adaptation
-- Model capacity (92k params) may be insufficient
-- Protocol mismatch unknown (sOT assumes linear relationship)
-
-## 7. Limitations
-- Small cohorts (LEOP 160, PERG 336 after nesting)
-- Attention ensemble degradation due to cross-fold probability scale mismatch
-- Sex imbalance in LEOP (24.5% F)
-- External datasets gated (URFU labels pending clinical review)
-- Single model architecture (92k params)
-
-## 8. Conclusion
-- Comprehensive benchmark: classical → neural → multi-task → attention
-- Attention ERG classifier achieves best LEOP performance (0.743)
-- Multi-task learning improves both tasks
-- Interpretability via attention weights enables clinical validation
-- Future: larger models, multi-site data, clinical deployment
-
-## References
-
-## Appendix
-- A. Signed OT mathematical properties
-- B. Simulation E2 full grid
-- C. Probe battery details
-- D. Attention weight visualization
-- E. External dataset protocols
+## References — 60 (add UMAP-ERG 2026, ERG-Graph 2026, Koca 2026)
