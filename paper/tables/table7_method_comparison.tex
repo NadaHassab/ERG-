@@ -1,15 +1,19 @@
 \begin{table}[htbp]
 \centering
-\caption{Method comparison. Patient-level AUROC (ensemble) for LEOP and PERG classification.}
+\caption{Method comparison. Patient-level AUROC (ensemble, 5 folds $\times$ 3 seeds; per-fold mean 0.812 LEOP / 0.785 PERG) for LEOP and PERG. Bold = best per task.}
 \label{tab:method-comparison}
 \begin{tabular}{lcc}
 \toprule
 Method & LEOP & PERG \\
 \midrule
-Neural single-task & {fmt(baseline['LEOP']['roc_auc'])} & {fmt(baseline['PERG']['roc_auc'])} \\
+Neural single-task & 0.682 & 0.742 \\
 Neural multi-task & 0.712 & 0.758 \\
-Attention ERG & 0.660 & 0.747 \\
+Attention ERG (3-seed) & 0.660 & 0.747 \\
 SSM/LSTM ERG & 0.678 & 0.753 \\
+MultiDomain (5d) & 0.740 & 0.750 \\
+MultiDomain+CWT (6d, 3-seed) & 0.772 & 0.744 \\
+\textbf{MultiDomain+CWT 10-seed} & 0.788 & \textbf{0.768} \\
+Bio 9-domain (STFT+FrFT+OP) & 0.795 & 0.728 \\
 \bottomrule
 \end{tabular}
 \end{table}

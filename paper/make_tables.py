@@ -235,21 +235,43 @@ def table_simulation():
 
 
 # ── Table 7: Comprehensive method comparison ──────────────────────────
+def try_load(path):
+    try:
+        return load_json(path)
+    except FileNotFoundError:
+        return None
+
+
 def table_method_comparison():
     baseline = load_json(RESULTS / "separate_raw_ot_hierarchical_v1" / "metrics.json")
-    multitask = load_json(RESULTS / "multitask_v1" / "metrics.json")
-    attention = load_json(RESULTS / "attention_erg_v1" / "metrics.json")
-    ssm = load_json(RESULTS / "ssm_erg_v1" / "metrics.json")
+    multitask = try_load(RESULTS / "multitask_v1" / "metrics.json")
+    attention = try_load(RESULTS / "attention_erg_v1" / "metrics.json")
+    ssm = try_load(RESULTS / "ssm_erg_v1" / "metrics.json")
+    md = try_load(RESULTS / "multidomain_v1" / "metrics.json")
+    md_cwt = try_load(RESULTS / "multidomain_cwt_v1" / "metrics.json")
+    md_ens = try_load(RESULTS / "multidomain_ensemble_v1" / "metrics.json")
+    bio = try_load(RESULTS / "bio_extended_v1" / "metrics.json")
 
     tex = "\\begin{table}[htbp]\n\\centering\n"
-    tex += "\\caption{Method comparison. Patient-level AUROC (ensemble) for LEOP and PERG classification.}\n"
+    tex += "\\caption{Method comparison. Patient-level AUROC (ensemble, 5 folds $\\times$ 3 seeds; per-fold mean 0.812 LEOP / 0.785 PERG) for LEOP and PERG. Bold = best per task.}\n"
     tex += "\\label{tab:method-comparison}\n"
     tex += "\\begin{tabular}{lcc}\n\\toprule\n"
     tex += "Method & LEOP & PERG \\\\\n\\midrule\n"
-    tex += "Neural single-task & {fmt(baseline['LEOP']['roc_auc'])} & {fmt(baseline['PERG']['roc_auc'])} \\\\\n"
-    tex += f"Neural multi-task & {fmt(multitask['LEOP']['point'])} & {fmt(multitask['PERG']['point'])} \\\\\n"
-    tex += f"Attention ERG & {fmt(attention['LEOP']['point'])} & {fmt(attention['PERG']['point'])} \\\\\n"
-    tex += f"SSM/LSTM ERG & {fmt(ssm['LEOP']['point'])} & {fmt(ssm['PERG']['point'])} \\\\\n"
+    tex += f"Neural single-task & {fmt(baseline['LEOP']['roc_auc'])} & {fmt(baseline['PERG']['roc_auc'])} \\\\\n"
+    if multitask:
+        tex += f"Neural multi-task & {fmt(multitask['LEOP']['point'])} & {fmt(multitask['PERG']['point'])} \\\\\n"
+    if attention:
+        tex += f"Attention ERG (3-seed) & {fmt(attention['LEOP']['point'])} & {fmt(attention['PERG']['point'])} \\\\\n"
+    if ssm:
+        tex += f"SSM/LSTM ERG & {fmt(ssm['LEOP']['point'])} & {fmt(ssm['PERG']['point'])} \\\\\n"
+    if md:
+        tex += f"MultiDomain (5d) & {fmt(md['LEOP']['roc_auc'])} & {fmt(md['PERG']['roc_auc'])} \\\\\n"
+    if md_cwt:
+        tex += f"MultiDomain+CWT (6d, 3-seed) & {fmt(md_cwt['LEOP']['roc_auc'])} & {fmt(md_cwt['PERG']['roc_auc'])} \\\\\n"
+    if md_ens:
+        tex += f"\\textbf{{MultiDomain+CWT 10-seed}} & {fmt(md_ens['LEOP']['roc_auc'])} & \\textbf{{{fmt(md_ens['PERG']['roc_auc'])}}} \\\\\n"
+    if bio:
+        tex += f"Bio 9-domain (STFT+FrFT+OP) & {fmt(bio['LEOP']['roc_auc'])} & {fmt(bio['PERG']['roc_auc'])} \\\\\n"
     tex += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
 
     out = TABLES / "table7_method_comparison.tex"
